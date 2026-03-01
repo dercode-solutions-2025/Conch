@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const cppcheck = @import("packages/third-party/cppcheck.zig");
 const libarchive = @import("packages/third-party/libarchive.zig");
+const fmt = @import("packages/third-party/fmt.zig");
 
 const LLVM = @import("packages/llvm/LLVM.zig");
 
@@ -218,6 +219,11 @@ fn addArtifacts(b: *std.Build, config: struct {
     const magic_enum = b.dependency("magic_enum", .{});
     const magic_enum_inc = magic_enum.path("include");
 
+    const fmt_dep = fmt.build(b, .{
+        .target = config.target,
+        .optimize = config.optimize,
+    });
+
     // Shared core functionality
     const libcore = createLibrary(b, .{
         .name = "core",
@@ -229,6 +235,7 @@ fn addArtifacts(b: *std.Build, config: struct {
             .files = try collectFiles(b, ProjectPaths.core.src, .{}),
             .flags = config.cxx_flags,
         },
+        .link_libraries = &.{fmt_dep.artifact},
     });
     if (config.auto_install) b.installArtifact(libcore);
     if (config.cdb_steps) |cdb_steps| try cdb_steps.append(b.allocator, &libcore.step);
@@ -253,7 +260,7 @@ fn addArtifacts(b: *std.Build, config: struct {
             b.path(ProjectPaths.core.inc),
         },
         .system_include_paths = &.{magic_enum_inc},
-        .link_libraries = &.{libcore},
+        .link_libraries = &.{ libcore, fmt_dep.artifact },
         .cxx = .{
             .files = try collectFiles(b, ProjectPaths.compiler.src, .{}),
             .flags = config.cxx_flags,
@@ -273,7 +280,7 @@ fn addArtifacts(b: *std.Build, config: struct {
             b.path(ProjectPaths.core.inc),
         },
         .system_include_paths = &.{magic_enum_inc},
-        .link_libraries = &.{libcompiler},
+        .link_libraries = &.{ libcompiler, fmt_dep.artifact },
         .cxx = .{
             .files = try collectFiles(b, ProjectPaths.cli.src, .{
                 .dropped_files = &.{"main.cpp"},
@@ -294,7 +301,7 @@ fn addArtifacts(b: *std.Build, config: struct {
             .files = &.{ProjectPaths.cli.src ++ "main.cpp"},
             .flags = config.cxx_flags,
         },
-        .link_libraries = &.{libcli},
+        .link_libraries = &.{ libcli, fmt_dep.artifact },
         .behavior = config.behavior orelse .{
             .runnable = .{
                 .cmd_name = "run",
@@ -359,7 +366,7 @@ fn addArtifacts(b: *std.Build, config: struct {
                 }),
                 .flags = config.cxx_flags,
             },
-            .link_libraries = &.{ tests.?.libcatch2, libcore },
+            .link_libraries = &.{ tests.?.libcatch2, libcore, fmt_dep.artifact },
             .behavior = config.behavior orelse .{
                 .runnable = .{
                     .cmd_name = "test-core",
@@ -389,7 +396,7 @@ fn addArtifacts(b: *std.Build, config: struct {
                 }),
                 .flags = config.cxx_flags,
             },
-            .link_libraries = &.{ libcompiler, tests.?.libcatch2 },
+            .link_libraries = &.{ libcompiler, tests.?.libcatch2, fmt_dep.artifact },
             .behavior = config.behavior orelse .{
                 .runnable = .{
                     .cmd_name = "test-compiler",
@@ -420,11 +427,7 @@ fn addArtifacts(b: *std.Build, config: struct {
                 }),
                 .flags = config.cxx_flags,
             },
-            .link_libraries = &.{
-                libcompiler,
-                libcli,
-                tests.?.libcatch2,
-            },
+            .link_libraries = &.{ libcompiler, libcli, tests.?.libcatch2, fmt_dep.artifact },
             .behavior = config.behavior orelse .{
                 .runnable = .{
                     .cmd_name = "test-cli",
@@ -784,11 +787,11 @@ fn addFmtStep(b: *std.Build, config: struct {
     const build_fmt = b.addFmt(.{ .paths = zig_paths });
     const build_fmt_check = b.addFmt(.{ .paths = zig_paths, .check = true });
 
-    const fmt = b.addSystemCommand(&.{config.clang_format});
-    fmt.addArg("-i");
-    fmt.addArgs(config.tooling_sources);
+    const formatter = b.addSystemCommand(&.{config.clang_format});
+    formatter.addArg("-i");
+    formatter.addArgs(config.tooling_sources);
     const fmt_step = b.step("fmt", "Format all project files");
-    fmt_step.dependOn(&fmt.step);
+    fmt_step.dependOn(&formatter.step);
     fmt_step.dependOn(&build_fmt.step);
 
     const fmt_check = b.addSystemCommand(&.{config.clang_format});
@@ -1075,7 +1078,7 @@ fn addPackageStep(b: *std.Build, config: struct {
     const uncompressed_package_dir: []const []const u8 = &.{ "package", "uncompressed" };
     const compressed_package_dir: []const []const u8 = &.{ "package", "compressed" };
 
-    var zon_buf: [2 * 1024]u8 = undefined;
+    var zon_buf: [5 * 1024]u8 = undefined;
     const raw_zon_contents = try b.build_root.handle.readFile("build.zig.zon", &zon_buf);
     zon_buf[raw_zon_contents.len] = 0;
     const zon_contents = zon_buf[0..raw_zon_contents.len :0];

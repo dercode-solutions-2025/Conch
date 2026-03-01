@@ -4,6 +4,8 @@
 
 #include <catch_amalgamated.hpp>
 
+#include <fmt/format.h>
+
 #include "array.hpp"
 
 #include "ast/statements/test_declarations.hpp"
@@ -152,7 +154,7 @@ static auto test_decl_fail(std::initializer_list<Keyword> modifiers,
 
     Parser p{ss.view()};
     auto [ast, errors] = p.consume();
-    for (const auto& n : ast) { std::println("{}", *n); }
+    for (const auto& n : ast) { fmt::println("{}", *n); }
     REQUIRE(ast.empty());
 
     REQUIRE(errors.size() == 1);

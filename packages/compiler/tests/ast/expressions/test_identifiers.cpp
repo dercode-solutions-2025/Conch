@@ -1,5 +1,7 @@
 #include <catch_amalgamated.hpp>
 
+#include <fmt/format.h>
+
 #include "ast/expressions/test_identifiers.hpp"
 #include "ast/test_helpers.hpp"
 
@@ -41,7 +43,7 @@ TEST_CASE("Normal identifiers") {
 
 TEST_CASE("Builtin identifiers") {
     for (const auto& [str, tok] : ALL_BUILTINS) {
-        helpers::test_ident(std::format("{};", str), tok);
+        helpers::test_ident(fmt::format("{};", str), tok);
     }
 }
 
