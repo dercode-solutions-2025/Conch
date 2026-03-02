@@ -356,7 +356,7 @@ fn create(b: *std.Build, config: union(enum) {
 /// Creates a new LLVM builder with the Host artifacts preconfigured.
 pub fn init(b: *std.Build) *Self {
     const self = create(b, .fresh);
-    self.buildHostLLVM();
+    self.buildConfigurePhase();
     return self;
 }
 
@@ -425,7 +425,7 @@ pub fn clone(self: *Self) *Self {
 }
 
 /// Compiles a subset of LLVM that the host needs for full target compilation.
-fn buildHostLLVM(self: *Self) void {
+fn buildConfigurePhase(self: *Self) void {
     self.configure_phase_artifacts.deps = self.buildDeps(.host);
     self.configure_phase_artifacts.demangle = self.buildDemangle(.host);
     self.configure_phase_artifacts.support = self.buildSupport(.{

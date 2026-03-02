@@ -1031,11 +1031,10 @@ fn addPackageStep(b: *std.Build, config: struct {
             .version = version,
         });
 
-        const package_artifact_dirname = try std.fmt.allocPrint(
-            b.allocator,
-            "conch-{s}-{s}",
-            .{ try query.zigTriple(b.allocator), version },
-        );
+        const package_artifact_dirname = b.fmt("conch-{s}-{s}", .{
+            try query.zigTriple(b.allocator),
+            version,
+        });
 
         const package_artifact_dir_path = b.pathJoin(uncompressed_package_dir ++ .{package_artifact_dirname});
         const platform = b.addInstallArtifact(
@@ -1069,11 +1068,7 @@ fn addPackageStep(b: *std.Build, config: struct {
 
             // Zip is only needed on windows
             if (query.os_tag.? == .windows) {
-                const zip_filename = try std.fmt.allocPrint(
-                    b.allocator,
-                    "{s}.zip",
-                    .{package_artifact_dirname},
-                );
+                const zip_filename = b.fmt("{s}.zip", .{package_artifact_dirname});
 
                 const packer = b.addRunArtifact(compressor);
                 packer.addArg("zip");
@@ -1095,12 +1090,8 @@ fn addPackageStep(b: *std.Build, config: struct {
                 package_step.dependOn(&copy_zip.step);
             }
 
-            // All platforms get an archive because I'm nice
-            const tar_filename = try std.fmt.allocPrint(
-                b.allocator,
-                "{s}.tar.zst",
-                .{package_artifact_dirname},
-            );
+            // All platforms get a zstd archive because I'm nice
+            const tar_filename = b.fmt("{s}.tar.zst", .{package_artifact_dirname});
 
             const packer = b.addRunArtifact(compressor);
             packer.addArg("zst");
@@ -1133,14 +1124,12 @@ fn configurePackArtifacts(b: *std.Build, config: struct {
         artifact.root_module.strip = true;
         artifact.out_filename = blk: {
             if (config.target.result.os.tag == .windows) {
-                break :blk try std.fmt.allocPrint(
-                    b.allocator,
+                break :blk b.fmt(
                     "{s}-{s}.exe",
                     .{ artifact.name, config.version },
                 );
             } else {
-                break :blk try std.fmt.allocPrint(
-                    b.allocator,
+                break :blk b.fmt(
                     "{s}-{s}",
                     .{ artifact.name, config.version },
                 );

@@ -49,6 +49,7 @@ pub fn main() !void {
     // The build system guarantees that everything in the input directory is ready to be compressed
     var dir = try std.fs.cwd().openDir(in_dir, .{ .iterate = true });
     defer dir.close();
+    const dir_basename = std.fs.path.basename(in_dir);
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
@@ -61,15 +62,19 @@ pub fn main() !void {
         if (entry.kind != .file) continue;
         const archive_entry = c.archive_entry_new() orelse return error.EntryNewFailed;
         defer c.archive_entry_free(archive_entry);
-        c.archive_entry_set_pathname(archive_entry, entry.path.ptr);
+
+        // Put the files into a subdirectory so decompressing doesn't dump into cwd
+        const entry_path = try std.fs.path.joinZ(allocator, &.{ dir_basename, entry.path });
+        c.archive_entry_set_pathname(archive_entry, entry_path.ptr);
 
         // File stats for the header
         const stat = try entry.dir.statFile(entry.basename);
         c.archive_entry_set_size(archive_entry, @intCast(stat.size));
+        c.archive_entry_set_mtime(archive_entry, @intCast(@divTrunc(stat.mtime, std.time.ns_per_s)), 0);
 
         // https://github.com/libarchive/libarchive/blob/master/libarchive/archive_entry.h#L216
         c.archive_entry_set_filetype(archive_entry, 0o100000);
-        c.archive_entry_set_perm(archive_entry, 0o644);
+        c.archive_entry_set_perm(archive_entry, @intCast(stat.mode));
 
         if (c.archive_write_header(archive, archive_entry) != c.ARCHIVE_OK) {
             try stderr.print("Header error: {s}\n", .{c.archive_error_string(archive)});
