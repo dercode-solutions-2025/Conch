@@ -9,6 +9,7 @@ const fmt = @import("packages/third-party/fmt.zig");
 const catch2 = @import("packages/third-party/catch2.zig");
 
 const LLVMBuilder = @import("packages/llvm/LLVMBuilder.zig");
+const ClangBuilder = @import("packages/llvm/ClangBuilder.zig");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{
@@ -16,6 +17,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     const llvm: *LLVMBuilder = .init(b);
+    const clang: *ClangBuilder = .init(llvm);
     const cdb_gen: *CDBGenerator = .init(b);
 
     var compiler_flags: std.ArrayList([]const u8) = .empty;
@@ -57,6 +59,7 @@ pub fn build(b: *std.Build) !void {
 
     try addTooling(b, .{
         .cdb_gen = cdb_gen,
+        .clang = clang,
         .cli = artifacts.cli,
         .cppcheck = artifacts.cppcheck.?,
     });
@@ -676,6 +679,7 @@ const CDBGenerator = struct {
 
 fn addTooling(b: *std.Build, config: struct {
     cdb_gen: *CDBGenerator,
+    clang: *ClangBuilder,
     cli: *std.Build.Step.Compile,
     cppcheck: *std.Build.Step.Compile,
 }) !void {
@@ -688,6 +692,7 @@ fn addTooling(b: *std.Build, config: struct {
     if (findProgram(b, "clang-format")) |clang_format| {
         try addFmtStep(b, .{
             .tooling_sources = tooling_sources,
+            .clang = config.clang,
             .clang_format = clang_format,
         });
     }
@@ -706,6 +711,7 @@ fn addTooling(b: *std.Build, config: struct {
 
 fn addFmtStep(b: *std.Build, config: struct {
     tooling_sources: []const []const u8,
+    clang: *ClangBuilder,
     clang_format: []const u8,
 }) !void {
     const zig_paths = try collectFiles(b, "packages", .{
@@ -717,6 +723,9 @@ fn addFmtStep(b: *std.Build, config: struct {
     });
     const build_fmt = b.addFmt(.{ .paths = zig_paths });
     const build_fmt_check = b.addFmt(.{ .paths = zig_paths, .check = true });
+
+    config.clang.build();
+    // b.installArtifact(config.clang.clang_artifacts.basic.core_lib);
 
     const formatter = b.addSystemCommand(&.{config.clang_format});
     formatter.addArg("-i");

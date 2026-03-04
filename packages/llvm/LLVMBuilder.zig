@@ -59,6 +59,7 @@ const ConfigurePhaseArtifacts = struct {
 
     gen_vt: *std.Build.Step.WriteFile,
 
+    lib_full_tblgen: Artifact = undefined,
     /// Used to convert the actual target 'td's into 'inc's
     full_tblgen: Artifact = undefined,
 };
@@ -250,11 +251,7 @@ pub const version: std.SemanticVersion = .{
     .minor = 1,
     .patch = 8,
 };
-
-const version_str = std.fmt.comptimePrint(
-    "{}.{}.{}",
-    .{ version.major, version.minor, version.patch },
-);
+pub const version_str = std.fmt.comptimePrint("{f}", .{version});
 
 pub const common_llvm_cxx_flags = [_][]const u8{
     "-std=c++17",
@@ -272,6 +269,8 @@ pub const enabled_targets = &[_][]const u8{
     "PowerPC",
     "LoongArch",
 };
+
+pub const llvm_revision = "git-" ++ version_str ++ "-2078da43e25a4623cab2d0d60decddf709aaea28";
 
 const Self = @This();
 
@@ -308,11 +307,8 @@ fn create(b: *std.Build, config: union(enum) {
             other.configure_phase_artifacts,
         },
         .fresh => .{
-            b.addConfigHeader(.{
-                .style = .blank,
-                .include_path = "llvm/Support/VCSRevision.h",
-            }, .{
-                .LLVM_REVISION = "git-" ++ version_str ++ "-2078da43e25a4623cab2d0d60decddf709aaea28",
+            b.addConfigHeader(.{ .include_path = "llvm/Support/VCSRevision.h" }, .{
+                .LLVM_REVISION = llvm_revision,
             }),
             b.addWriteFile("llvm/Support/Extension.def", "#undef HANDLE_EXTENSION"),
             blk: {
@@ -425,11 +421,13 @@ fn buildConfigurePhase(self: *Self) void {
         .minimal = true,
     });
 
-    _ = self.synthesizeHeader(self.configure_phase_artifacts.gen_vt, .{
-        .tblgen = self.configure_phase_artifacts.minimal_tblgen,
-        .name = "GenVT",
-        .td_file = "llvm/include/llvm/CodeGen/ValueTypes.td",
-        .instruction = .{ .action = "-gen-vt" },
+    self.synthesizeHeader(self.configure_phase_artifacts.gen_vt, .{
+        .gen_conf = .{
+            .tblgen = self.configure_phase_artifacts.minimal_tblgen,
+            .name = "GenVT",
+            .td_file = "llvm/include/llvm/CodeGen/ValueTypes.td",
+            .instruction = .{ .action = "-gen-vt" },
+        },
         .virtual_path = "llvm/CodeGen/GenVT.inc",
     });
 
@@ -553,9 +551,7 @@ const AddCSourceFileOptions = struct {
     language: ?std.Build.Module.CSourceLanguage = null,
 };
 
-/// Creates a module and corresponding library, defaulting to the target platform.
-/// 'llvm/include' is implicitly included here
-pub fn createLLVMLibrary(self: *const Self, config: struct {
+pub const ArtifactCreateConfig = struct {
     name: []const u8,
     cxx_source_files: ?AddCSourceFileOptions,
     additional_include_paths: ?[]const std.Build.LazyPath = null,
@@ -563,7 +559,10 @@ pub fn createLLVMLibrary(self: *const Self, config: struct {
     link_libraries: ?[]const Artifact = null,
     target_override: ?std.Build.ResolvedTarget = null,
     bundle_compiler_rt: ?bool = null,
-}) Artifact {
+};
+
+/// Creates a module, defaulting to the target platform.
+fn createLLVMModule(self: *const Self, config: ArtifactCreateConfig) *std.Build.Module {
     const mod = self.createTargetModule();
     if (config.target_override) |target| {
         mod.resolved_target = target;
@@ -589,12 +588,29 @@ pub fn createLLVMLibrary(self: *const Self, config: struct {
         mod.linkLibrary(lib);
     };
 
+    return mod;
+}
+
+/// Creates a module and corresponding library, defaulting to the target platform.
+/// 'llvm/include' is implicitly included here
+pub fn createLLVMLibrary(self: *const Self, config: ArtifactCreateConfig) Artifact {
     const lib = self.b.addLibrary(.{
         .name = config.name,
-        .root_module = mod,
+        .root_module = self.createLLVMModule(config),
     });
     lib.bundle_compiler_rt = config.bundle_compiler_rt;
     return lib;
+}
+
+/// Creates a module and corresponding exe, defaulting to the target platform.
+/// 'llvm/include' is implicitly included here
+pub fn createLLVMExecutable(self: *const Self, config: ArtifactCreateConfig) Artifact {
+    const exe = self.b.addExecutable(.{
+        .name = config.name,
+        .root_module = self.createLLVMModule(config),
+    });
+    exe.bundle_compiler_rt = config.bundle_compiler_rt;
+    return exe;
 }
 
 const ConfigHeaders = struct {
@@ -1069,40 +1085,44 @@ fn runTargetParserGen(self: *Self) *std.Build.Step.WriteFile {
     const b = self.b;
     const write_file = b.addWriteFiles();
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "AArch64TargetParserDef",
-        .td_file = "llvm/lib/Target/AArch64/AArch64.td",
-        .instruction = .{ .action = "-gen-arm-target-def" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "AArch64TargetParserDef",
+            .td_file = "llvm/lib/Target/AArch64/AArch64.td",
+            .instruction = .{ .action = "-gen-arm-target-def" },
+            .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/AArch64")},
+        },
         .virtual_path = "llvm/TargetParser/AArch64TargetParserDef.inc",
-        .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/AArch64")},
     });
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "ARMTargetParserDef",
-        .td_file = "llvm/lib/Target/ARM/ARM.td",
-        .instruction = .{ .action = "-gen-arm-target-def" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "ARMTargetParserDef",
+            .td_file = "llvm/lib/Target/ARM/ARM.td",
+            .instruction = .{ .action = "-gen-arm-target-def" },
+            .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/ARM")},
+        },
         .virtual_path = "llvm/TargetParser/ARMTargetParserDef.inc",
-        .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/ARM")},
     });
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "RISCVTargetParserDef",
-        .td_file = "llvm/lib/Target/RISCV/RISCV.td",
-        .instruction = .{ .action = "-gen-riscv-target-def" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "RISCVTargetParserDef",
+            .td_file = "llvm/lib/Target/RISCV/RISCV.td",
+            .instruction = .{ .action = "-gen-riscv-target-def" },
+            .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/RISCV")},
+        },
         .virtual_path = "llvm/TargetParser/RISCVTargetParserDef.inc",
-        .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/RISCV")},
     });
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "PPCGenTargetFeatures",
-        .td_file = "llvm/lib/Target/PowerPC/PPC.td",
-        .instruction = .{ .action = "-gen-target-features" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "PPCGenTargetFeatures",
+            .td_file = "llvm/lib/Target/PowerPC/PPC.td",
+            .instruction = .{ .action = "-gen-target-features" },
+            .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/PowerPC")},
+        },
         .virtual_path = "llvm/TargetParser/PPCGenTargetFeatures.inc",
-        .extra_includes = &.{self.metadata.root.path(b, "llvm/lib/Target/PowerPC")},
     });
 
     return write_file;
@@ -1126,45 +1146,50 @@ fn runIntrinsicsGen(self: *Self) *std.Build.Step.WriteFile {
     const b = self.b;
     const write_file = b.addWriteFiles();
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "Attributes",
-        .td_file = "llvm/include/llvm/IR/Attributes.td",
-        .instruction = .{ .action = "-gen-attrs" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "Attributes",
+            .td_file = "llvm/include/llvm/IR/Attributes.td",
+            .instruction = .{ .action = "-gen-attrs" },
+        },
         .virtual_path = "llvm/IR/Attributes.inc",
     });
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "IntrinsicEnums",
-        .td_file = "llvm/include/llvm/IR/Intrinsics.td",
-        .instruction = .{ .action = "-gen-intrinsic-enums" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "IntrinsicEnums",
+            .td_file = "llvm/include/llvm/IR/Intrinsics.td",
+            .instruction = .{ .action = "-gen-intrinsic-enums" },
+        },
         .virtual_path = "llvm/IR/IntrinsicEnums.inc",
     });
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "RuntimeLibcalls",
-        .td_file = "llvm/include/llvm/IR/RuntimeLibcalls.td",
-        .instruction = .{ .action = "-gen-runtime-libcalls" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "RuntimeLibcalls",
+            .td_file = "llvm/include/llvm/IR/RuntimeLibcalls.td",
+            .instruction = .{ .action = "-gen-runtime-libcalls" },
+        },
         .virtual_path = "llvm/IR/RuntimeLibcalls.inc",
     });
 
-    _ = self.synthesizeHeader(write_file, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "IntrinsicImpl",
-        .td_file = "llvm/include/llvm/IR/Intrinsics.td",
-        .instruction = .{ .action = "-gen-intrinsic-impl" },
+    self.synthesizeHeader(write_file, .{
+        .gen_conf = .{
+            .name = "IntrinsicImpl",
+            .td_file = "llvm/include/llvm/IR/Intrinsics.td",
+            .instruction = .{ .action = "-gen-intrinsic-impl" },
+        },
         .virtual_path = "llvm/IR/IntrinsicImpl.inc",
     });
 
     for (ir.intrinsic_info) |info| {
-        _ = self.synthesizeHeader(write_file, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = b.fmt("Intrinsics{s}", .{info.arch}),
-            .td_file = "llvm/include/llvm/IR/Intrinsics.td",
-            .instruction = .{
-                .actions = &.{ "-gen-intrinsic-enums", b.fmt("-intrinsic-prefix={s}", .{info.prefix}) },
+        self.synthesizeHeader(write_file, .{
+            .gen_conf = .{
+                .name = b.fmt("Intrinsics{s}", .{info.arch}),
+                .td_file = "llvm/include/llvm/IR/Intrinsics.td",
+                .instruction = .{
+                    .actions = &.{ "-gen-intrinsic-enums", b.fmt("-intrinsic-prefix={s}", .{info.prefix}) },
+                },
             },
             .virtual_path = b.fmt("llvm/IR/Intrinsics{s}.h", .{info.arch}),
         });
@@ -1710,36 +1735,40 @@ fn buildFrontend(self: *Self) LLVMTargetArtifacts.Frontend {
     };
 
     // OpenMP gen files
-    _ = self.synthesizeHeader(frontend.gen_files, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "OMP",
-        .td_file = "llvm/include/llvm/Frontend/OpenMP/OMP.td",
-        .instruction = .{ .action = "-gen-directive-impl" },
+    self.synthesizeHeader(frontend.gen_files, .{
+        .gen_conf = .{
+            .name = "OMP",
+            .td_file = "llvm/include/llvm/Frontend/OpenMP/OMP.td",
+            .instruction = .{ .action = "-gen-directive-impl" },
+        },
         .virtual_path = "llvm/Frontend/OpenMP/OMP.inc",
     });
 
-    _ = self.synthesizeHeader(frontend.gen_files, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "OMP.h",
-        .td_file = "llvm/include/llvm/Frontend/OpenMP/OMP.td",
-        .instruction = .{ .action = "-gen-directive-decl" },
+    self.synthesizeHeader(frontend.gen_files, .{
+        .gen_conf = .{
+            .name = "OMP.h",
+            .td_file = "llvm/include/llvm/Frontend/OpenMP/OMP.td",
+            .instruction = .{ .action = "-gen-directive-decl" },
+        },
         .virtual_path = "llvm/Frontend/OpenMP/OMP.h.inc",
     });
 
     // OpenACC gen files
-    _ = self.synthesizeHeader(frontend.gen_files, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "ACC",
-        .td_file = "llvm/include/llvm/Frontend/OpenACC/ACC.td",
-        .instruction = .{ .action = "-gen-directive-impl" },
+    self.synthesizeHeader(frontend.gen_files, .{
+        .gen_conf = .{
+            .name = "ACC",
+            .td_file = "llvm/include/llvm/Frontend/OpenACC/ACC.td",
+            .instruction = .{ .action = "-gen-directive-impl" },
+        },
         .virtual_path = "llvm/Frontend/OpenACC/ACC.inc",
     });
 
-    _ = self.synthesizeHeader(frontend.gen_files, .{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
-        .name = "ACC.h",
-        .td_file = "llvm/include/llvm/Frontend/OpenACC/ACC.td",
-        .instruction = .{ .action = "-gen-directive-decl" },
+    self.synthesizeHeader(frontend.gen_files, .{
+        .gen_conf = .{
+            .name = "ACC.h",
+            .td_file = "llvm/include/llvm/Frontend/OpenACC/ACC.td",
+            .instruction = .{ .action = "-gen-directive-decl" },
+        },
         .virtual_path = "llvm/Frontend/OpenACC/ACC.h.inc",
     });
 
@@ -2562,7 +2591,6 @@ fn buildToolDrivers(self: *const Self) LLVMTargetArtifacts.ToolDrivers {
 
     // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/llvm/lib/ToolDrivers/llvm-dlltool/CMakeLists.txt
     const dll_options = self.generateTblgenInc(.{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
         .name = "Options",
         .td_file = "llvm/lib/ToolDrivers/llvm-dlltool/Options.td",
         .instruction = .{ .action = "-gen-opt-parser-defs" },
@@ -2586,7 +2614,6 @@ fn buildToolDrivers(self: *const Self) LLVMTargetArtifacts.ToolDrivers {
 
     // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/llvm/lib/ToolDrivers/llvm-lib/CMakeLists.txt
     const lib_options = self.generateTblgenInc(.{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
         .name = "Options",
         .td_file = "llvm/lib/ToolDrivers/llvm-lib/Options.td",
         .instruction = .{ .action = "-gen-opt-parser-defs" },
@@ -2624,13 +2651,14 @@ fn buildAArch64(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -2799,13 +2827,14 @@ fn buildX86(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -2972,13 +3001,14 @@ fn buildArm(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -3148,24 +3178,26 @@ fn buildRISCV(self: *Self) Artifact {
 
     // RISCV has two sets of tblgen files to run
     inline for (Backend.base_actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.base_td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.base_td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
     inline for (Backend.gisel_actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.gisel_td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.gisel_td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -3332,13 +3364,14 @@ fn buildWebAssembly(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -3507,13 +3540,14 @@ fn buildXtensa(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -3643,13 +3677,14 @@ fn buildPowerPC(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -3789,13 +3824,14 @@ fn buildLoongArch(self: *Self) Artifact {
     const backend_root = self.metadata.root.path(b, Backend.backend_root);
 
     inline for (Backend.actions) |action| {
-        _ = self.synthesizeHeader(td_files, .{
-            .tblgen = self.configure_phase_artifacts.full_tblgen,
-            .name = action.name,
-            .td_file = Backend.td_filepath,
-            .instruction = .{ .actions = action.td_args },
+        self.synthesizeHeader(td_files, .{
+            .gen_conf = .{
+                .name = action.name,
+                .td_file = Backend.td_filepath,
+                .instruction = .{ .actions = action.td_args },
+                .extra_includes = &.{backend_root},
+            },
             .virtual_path = action.name ++ ".inc",
-            .extra_includes = &.{backend_root},
         });
     }
 
@@ -3982,7 +4018,6 @@ fn buildExecutionEngine(self: *const Self) LLVMTargetArtifacts.ExecutionEngine {
 
     // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/llvm/lib/ExecutionEngine/JITLink/CMakeLists.txt
     const jit_link_td = self.generateTblgenInc(.{
-        .tblgen = self.configure_phase_artifacts.full_tblgen,
         .name = "COFFOptions",
         .td_file = execution_engine.jit_link_root ++ "COFFOptions.td",
         .instruction = .{ .action = "-gen-opt-parser-defs" },
@@ -4132,7 +4167,7 @@ fn buildExecutionEngine(self: *const Self) LLVMTargetArtifacts.ExecutionEngine {
 }
 
 /// Compiles tblgen (for the host system only)
-fn buildTblgen(self: *const Self, config: struct {
+fn buildTblgen(self: *Self, config: struct {
     support_lib: Artifact,
     minimal: bool,
 }) Artifact {
@@ -4145,11 +4180,22 @@ fn buildTblgen(self: *const Self, config: struct {
         .flags = &common_llvm_cxx_flags,
     });
 
-    mod.addCSourceFiles(.{
-        .root = self.metadata.root.path(b, tblgen.lib_root),
-        .files = &tblgen.lib_sources,
-        .flags = &common_llvm_cxx_flags,
-    });
+    // Its worth making this a library since we need it for Clang
+    const tblgen_lib = blk: {
+        const lib_mod = self.createHostModule();
+        lib_mod.addCSourceFiles(.{
+            .root = self.metadata.root.path(b, tblgen.lib_root),
+            .files = &tblgen.lib_sources,
+            .flags = &common_llvm_cxx_flags,
+        });
+        lib_mod.addIncludePath(self.metadata.llvm_include);
+        lib_mod.linkLibrary(config.support_lib);
+
+        break :blk b.addLibrary(.{
+            .name = "LLVMLibTableGen",
+            .root_module = lib_mod,
+        });
+    };
 
     if (config.minimal) {
         mod.addCSourceFile(.{
@@ -4172,7 +4218,13 @@ fn buildTblgen(self: *const Self, config: struct {
 
     mod.addIncludePath(self.metadata.llvm_include);
     mod.addIncludePath(self.metadata.root.path(b, tblgen.utils_root));
+    mod.linkLibrary(tblgen_lib);
     mod.linkLibrary(config.support_lib);
+
+    // If not minimal, then we can store the lib tblgen for other LLVM subprojects
+    if (!config.minimal) {
+        self.configure_phase_artifacts.lib_full_tblgen = tblgen_lib;
+    }
 
     return b.addExecutable(.{
         .name = if (config.minimal) "LLVMTableGenMinimal" else "LLVMTableGen",
@@ -4185,21 +4237,27 @@ const TblgenInstruction = union(enum) {
     actions: []const []const u8,
 };
 
-/// Uses tblgen to generate a build-time dependency for LLVM
-/// - tg_tool: The tblgen binary to use
-/// - name: The name of the generated .inc file
-/// - td_file: The .td file, relative to LLVM root
-/// - instruction: The tablegen action(s) to run, e.g. "-gen-intrinsic-enums"
-/// - extra_includes: Optional includes to add to the include path
-fn generateTblgenInc(self: *const Self, config: struct {
-    tblgen: Artifact,
+pub const TblgenGeneratorConfig = struct {
+    /// The tblgen binary to use
+    tblgen: ?Artifact = null,
+
+    /// The name of the generated .inc file
     name: []const u8,
+
+    /// The .td file, relative to LLVM root
     td_file: []const u8,
+
+    /// The tablegen action(s) to run, e.g. "-gen-intrinsic-enums"
     instruction: TblgenInstruction,
+
+    /// Optional includes to add to the include path
     extra_includes: ?[]const std.Build.LazyPath = null,
-}) std.Build.LazyPath {
+};
+
+/// Uses tblgen to generate a build-time dependency for LLVM
+pub fn generateTblgenInc(self: *const Self, config: TblgenGeneratorConfig) std.Build.LazyPath {
     const b = self.b;
-    const run = b.addRunArtifact(config.tblgen);
+    const run = b.addRunArtifact(config.tblgen orelse self.configure_phase_artifacts.full_tblgen);
     run.step.name = b.fmt("TableGen {s}", .{config.name});
 
     switch (config.instruction) {
@@ -4220,23 +4278,21 @@ fn generateTblgenInc(self: *const Self, config: struct {
     return run.addOutputFileArg(b.fmt("{s}.inc", .{config.name}));
 }
 
-/// Generate the passed td file as the requested inc, adding it to the virtual path registry.
-fn synthesizeHeader(self: *Self, registry: *std.Build.Step.WriteFile, config: struct {
-    tblgen: Artifact,
-    name: []const u8,
-    td_file: []const u8,
-    instruction: TblgenInstruction,
+pub const SynthesizeHeaderConfig = struct {
+    gen_conf: TblgenGeneratorConfig,
+
+    /// The virtual path to install the generated file to
     virtual_path: []const u8,
-    extra_includes: ?[]const std.Build.LazyPath = null,
-}) std.Build.LazyPath {
-    const flat = self.generateTblgenInc(.{
-        .tblgen = config.tblgen,
-        .name = config.name,
-        .td_file = config.td_file,
-        .instruction = config.instruction,
-        .extra_includes = config.extra_includes,
-    });
-    return registry.addCopyFile(flat, config.virtual_path);
+};
+
+/// Generate the passed td file as the requested inc, adding it to the virtual path registry.
+pub fn synthesizeHeader(
+    self: *const Self,
+    registry: *std.Build.Step.WriteFile,
+    config: SynthesizeHeaderConfig,
+) void {
+    const flat = self.generateTblgenInc(config.gen_conf);
+    _ = registry.addCopyFile(flat, config.virtual_path);
 }
 
 fn buildDeps(self: *const Self, platform: Platform) ThirdPartyDeps {
