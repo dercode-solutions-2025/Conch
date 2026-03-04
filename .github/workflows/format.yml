@@ -18,7 +18,7 @@ jobs:
     fmt:
         permissions:
             contents: read
-        runs-on: macos-latest
+        runs-on: ubuntu-latest
 
         steps:
             - name: Checkout repo
@@ -39,13 +39,6 @@ jobs:
                 key: ${{ runner.os }}-zig-${{ hashFiles('packages/llvm/**.zig') }}
                 restore-keys: |
                   ${{ runner.os }}-zig-
-
-            - name: Install dependencies
-              run: |
-                  brew update
-                  brew install clang-format
-              env:
-                  HOMEBREW_NO_AUTO_UPDATE: 1
 
             - name: Check formatting
               run: zig build fmt-check

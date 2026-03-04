@@ -42,11 +42,6 @@ zig build --release
 
 This builds the `ReleaseFast` configuration. You can read about Zig's different optimization levels [here](https://ziglang.org/documentation/master/#Build-Mode).
 
-## Tooling Dependencies
-1. [clang-format](https://github.com/llvm/llvm-project/releases/tag/llvmorg-21.1.8) is used for C++ code formatting. LLVM 21's formatter should be used on all platforms for consistency.
-
-Note that these dependencies are purely optional for users simply building the project from source!
-
 # Correctness & Availability
 [Catch2](https://github.com/catchorg/Catch2) is used with a custom [Zig](https://ziglang.org/) allocator to run automated CI tests on Windows, macOS, and Linux. This choice allows me to take advantage of the best-in-class testing suite provided by catch2 while making use of the undefined behavior and leak sanitizers provided by Zig and its build system.
 

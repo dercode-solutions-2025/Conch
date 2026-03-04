@@ -78,8 +78,8 @@ const ProjectPaths = struct {
 
         pub fn files(self: *const Project, b: *std.Build) ![][]const u8 {
             return std.mem.concat(b.allocator, []const u8, &.{
-                try collectFiles(b, self.inc, .{}),
-                try collectFiles(b, self.src, .{ .allowed_extensions = &.{".hpp"} }),
+                try collectFiles(b, self.inc, .{ .allowed_extensions = &.{".hpp"} }),
+                try collectFiles(b, self.src, .{ .allowed_extensions = &.{".cpp"} }),
                 try collectFiles(b, self.tests, .{ .allowed_extensions = &.{ ".hpp", ".cpp" } }),
             });
         }
@@ -689,13 +689,10 @@ fn addTooling(b: *std.Build, config: struct {
     cdb_step.dependOn(&config.cdb_gen.step);
     b.getInstallStep().dependOn(&config.cdb_gen.step);
 
-    if (findProgram(b, "clang-format")) |clang_format| {
-        try addFmtStep(b, .{
-            .tooling_sources = tooling_sources,
-            .clang = config.clang,
-            .clang_format = clang_format,
-        });
-    }
+    try addFmtStep(b, .{
+        .tooling_sources = tooling_sources,
+        .clang = config.clang,
+    });
 
     const check_step = try addStaticAnalysisStep(b, .{
         .tooling_sources = tooling_sources,
@@ -712,7 +709,6 @@ fn addTooling(b: *std.Build, config: struct {
 fn addFmtStep(b: *std.Build, config: struct {
     tooling_sources: []const []const u8,
     clang: *ClangBuilder,
-    clang_format: []const u8,
 }) !void {
     const zig_paths = try collectFiles(b, "packages", .{
         .allowed_extensions = &.{".zig"},
@@ -725,16 +721,16 @@ fn addFmtStep(b: *std.Build, config: struct {
     const build_fmt_check = b.addFmt(.{ .paths = zig_paths, .check = true });
 
     config.clang.build();
-    // b.installArtifact(config.clang.clang_artifacts.basic.core_lib);
+    const clang_format = config.clang.clang_tools.clang_format;
 
-    const formatter = b.addSystemCommand(&.{config.clang_format});
+    const formatter = b.addRunArtifact(clang_format);
     formatter.addArg("-i");
     formatter.addArgs(config.tooling_sources);
     const fmt_step = b.step("fmt", "Format all project files");
     fmt_step.dependOn(&formatter.step);
     fmt_step.dependOn(&build_fmt.step);
 
-    const fmt_check = b.addSystemCommand(&.{config.clang_format});
+    const fmt_check = b.addRunArtifact(clang_format);
     fmt_check.addArgs(&.{ "--dry-run", "--Werror" });
     fmt_check.addArgs(config.tooling_sources);
     const fmt_check_step = b.step("fmt-check", "Check formatting of all project files");
@@ -1146,8 +1142,4 @@ fn getPrefixRelativePath(b: *std.Build, paths: []const []const u8) []const u8 {
         []const u8,
         &.{ &.{std.fs.path.basename(b.install_prefix)}, paths },
     ) catch @panic("OOM"));
-}
-
-fn findProgram(b: *std.Build, cmd: []const u8) ?[]const u8 {
-    return b.findProgram(&.{cmd}, &.{}) catch null;
 }
