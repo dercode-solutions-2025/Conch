@@ -6,7 +6,6 @@ const LLVMBuilder = @import("LLVMBuilder.zig");
 const analysis = @import("sources/clang/analysis.zig");
 const api_notes = @import("sources/clang/api_notes.zig");
 const ast = @import("sources/clang/ast.zig");
-const ast_matchers = @import("sources/clang/ast_matchers.zig");
 const basic = @import("sources/clang/basic.zig");
 const codegen = @import("sources/clang/codegen.zig");
 const driver = @import("sources/clang/driver.zig");
@@ -15,7 +14,6 @@ const format = @import("sources/clang/format.zig");
 const frontend = @import("sources/clang/frontend.zig");
 const index = @import("sources/clang/index.zig");
 const install_api = @import("sources/clang/install_api.zig");
-const interpreter = @import("sources/clang/interpreter.zig");
 const lex = @import("sources/clang/lex.zig");
 const parse = @import("sources/clang/parse.zig");
 const sema = @import("sources/clang/sema.zig");
@@ -26,6 +24,7 @@ const tooling = @import("sources/clang/tooling.zig");
 
 const Artifact = LLVMBuilder.Artifact;
 const ArtifactCreateConfig = LLVMBuilder.ArtifactCreateConfig;
+const ArtifactWithGen = LLVMBuilder.ArtifactWithGen;
 
 const Metadata = struct {
     root: std.Build.LazyPath,
@@ -35,11 +34,6 @@ const Metadata = struct {
 
 /// Artifacts compiled for the actual target, associated with the clang subproject of llvm
 const ClangTargetArtifacts = struct {
-    const ArtifactWithGen = struct {
-        gen: *std.Build.Step.WriteFile = undefined,
-        core_lib: Artifact = undefined,
-    };
-
     const Basic = struct {
         gen: *std.Build.Step.WriteFile = undefined,
         core_lib: Artifact = undefined,
@@ -47,7 +41,10 @@ const ClangTargetArtifacts = struct {
     };
 
     const Tooling = struct {
+        /// This is really `clangTooling`
         core_lib: Artifact = undefined,
+
+        /// This is really `clangToolingCore`
         core: Artifact = undefined,
         ast_diff: Artifact = undefined,
         dep_scanning: Artifact = undefined,
@@ -94,14 +91,12 @@ const ClangTargetArtifacts = struct {
     ast: AST = .{},
     codegen: Artifact = undefined,
     cross_tu: Artifact = undefined,
-    directory_watcher: Artifact = undefined,
     edit: Artifact = undefined,
     extract_api: Artifact = undefined,
     format: Artifact = undefined,
-    frontend: Artifact = undefined,
+    frontend: Frontend = undefined,
     index: Artifact = undefined,
     install_api: Artifact = undefined,
-    interpreter: Artifact = undefined,
     parse: ArtifactWithGen = .{},
     serialization: ArtifactWithGen = .{},
     static_analyzer: StaticAnalyzer = .{},
@@ -170,7 +165,27 @@ pub fn build(self: *Self) void {
     self.clang_artifacts.tooling = self.buildTooling();
     self.clang_artifacts.format = self.buildFormat();
 
-    self.clang_artifacts.driver.gen = self.runDriverOptsGen();
+    self.clang_artifacts.static_analyzer.gen = self.runStaticAnalysisGen();
+    self.clang_artifacts.driver = self.buildDriver();
+    self.clang_artifacts.api_notes = self.buildAPINotes();
+    self.clang_artifacts.ast = self.buildAST();
+    self.clang_artifacts.analysis = self.buildAnalysis();
+    self.clang_artifacts.edit = self.buildEdit();
+    self.clang_artifacts.sema.core_lib = self.buildSema();
+
+    self.clang_artifacts.serialization = self.buildSerialization();
+    self.clang_artifacts.parse = self.buildParse();
+    self.clang_artifacts.frontend.core_lib = self.buildFrontendCore();
+    self.clang_artifacts.install_api = self.buildInstallAPI();
+    self.clang_artifacts.index = self.buildIndex();
+    self.clang_artifacts.extract_api = self.buildExtractAPI();
+    self.clang_artifacts.frontend.rewrite = self.buildFrontendRewrite();
+    self.clang_artifacts.codegen = self.buildCodeGen();
+    self.clang_artifacts.cross_tu = self.buildCrossTU();
+    self.clang_artifacts.static_analyzer.core = self.buildSACore();
+    self.clang_artifacts.static_analyzer.checkers = self.buildSACheckers();
+    self.clang_artifacts.static_analyzer.frontend = self.buildSAFrontend();
+    self.clang_artifacts.frontend.tool = self.buildFrontendTool();
 
     self.clang_tools.clang_format = self.buildFormatTool();
 
@@ -206,7 +221,7 @@ fn createConfigH(self: *const Self) *std.Build.Step.ConfigHeader {
         .{
             .BUG_REPORT_URL = "https://github.com/llvm/llvm-project/issues",
             .CLANG_DEFAULT_PIE_ON_LINUX = 0,
-            .CLANG_DEFAULT_LINKER = "",
+            .CLANG_DEFAULT_LINKER = "", // TODO: Set to lld when building lld
             .CLANG_DEFAULT_CXX_STDLIB = "",
             .CLANG_DEFAULT_RTLIB = "",
             .CLANG_DEFAULT_UNWINDLIB = "",
@@ -273,11 +288,16 @@ fn runSemaGen(self: *const Self) *std.Build.Step.WriteFile {
 
     // Diagnostics need direct include access to Basic
     for (sema.attr_synthesize_configs) |config| {
-        var adj = config;
-        adj.gen_conf.tblgen = self.clang_tblgen;
-        adj.gen_conf.extra_includes = &.{self.metadata.clang_include};
-        self.llvm.synthesizeHeader(registry, adj);
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.clang_include},
+        }));
     }
+
+    self.llvm.synthesizeHeader(registry, sema.open_cl_synthesize.with(.{
+        .tblgen = self.clang_tblgen,
+        .extra_includes = &.{self.metadata.clang_include},
+    }));
 
     return registry;
 }
@@ -289,57 +309,37 @@ fn runBasicGen(self: *const Self) *std.Build.Step.WriteFile {
 
     // Diagnostics need direct include access to Basic
     for (basic.diag_synthesize_configs) |config| {
-        var adj = config;
-        adj.gen_conf.tblgen = self.clang_tblgen;
-        adj.gen_conf.extra_includes = &.{
-            self.metadata.root.path(b, basic.include_root),
-        };
-        self.llvm.synthesizeHeader(registry, adj);
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.root.path(b, basic.include_root)},
+        }));
     }
 
     // Attributes need clang include
     for (basic.attr_synthesize_configs) |config| {
-        var adj = config;
-        adj.gen_conf.tblgen = self.clang_tblgen;
-        adj.gen_conf.extra_includes = &.{self.metadata.clang_include};
-        self.llvm.synthesizeHeader(registry, adj);
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.clang_include},
+        }));
     }
 
     // Builtins need clang include
     for (basic.builtin_synthesize_configs) |config| {
-        var adj = config;
-        adj.gen_conf.tblgen = self.clang_tblgen;
-        adj.gen_conf.extra_includes = &.{self.metadata.clang_include};
-        self.llvm.synthesizeHeader(registry, adj);
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.clang_include},
+        }));
     }
 
     // Arch specific need direct include access to Basic
     for (basic.arch_synthesize_configs) |config| {
-        var adj = config;
-        adj.gen_conf.tblgen = self.clang_tblgen;
-        adj.gen_conf.extra_includes = &.{
-            self.metadata.root.path(b, basic.include_root),
-        };
-        self.llvm.synthesizeHeader(registry, adj);
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.root.path(b, basic.include_root)},
+        }));
     }
 
     return registry;
-}
-
-/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Driver/CMakeLists.txt
-fn runDriverOptsGen(self: *const Self) *std.Build.Step.WriteFile {
-    const opts = self.b.addWriteFiles();
-
-    // This uses LLVM's tablegen for some reason
-    self.llvm.synthesizeHeader(opts, .{
-        .gen_conf = .{
-            .name = "Options",
-            .td_file = "clang/include/clang/Driver/Options.td",
-            .instruction = .{ .action = "-gen-opt-parser-defs" },
-        },
-        .virtual_path = "clang/Driver/Options.inc",
-    });
-    return opts;
 }
 
 /// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Basic/CMakeLists.txt
@@ -374,8 +374,8 @@ fn buildBasic(self: *Self) Artifact {
             self.metadata.root.path(b, basic.root),
             self.clang_artifacts.basic.gen.getDirectory(),
             self.clang_artifacts.sema.gen.getDirectory(),
-            llvm.target_artifacts.target_backends.parser_gen.getDirectory(),
-            llvm.target_artifacts.frontend.gen_files.getDirectory(),
+            llvm.target_artifacts.target_backends.parser.gen.getDirectory(),
+            llvm.target_artifacts.frontend.gen.getDirectory(),
         },
         .config_headers = &.{
             self.metadata.vcs_version,
@@ -385,18 +385,15 @@ fn buildBasic(self: *Self) Artifact {
         },
         .link_libraries = &.{
             llvm.target_artifacts.support,
-            llvm.target_artifacts.target_backends.parser,
+            llvm.target_artifacts.target_backends.parser.core_lib,
             llvm.target_artifacts.frontend.open_mp,
         },
-        .bundle_compiler_rt = true,
     });
 }
 
 /// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Lex/CMakeLists.txt
 fn buildLex(self: *const Self) Artifact {
     const b = self.b;
-    const llvm = self.llvm;
-
     return self.createClangLibrary(.{
         .name = "clangLex",
         .cxx_source_files = .{
@@ -410,8 +407,8 @@ fn buildLex(self: *const Self) Artifact {
         .config_headers = &.{self.config_h},
         .link_libraries = &.{
             self.clang_artifacts.basic.core_lib,
-            llvm.target_artifacts.support,
-            llvm.target_artifacts.target_backends.parser,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
         },
     });
 }
@@ -419,8 +416,6 @@ fn buildLex(self: *const Self) Artifact {
 /// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Rewrite/CMakeLists.txt
 fn buildRewrite(self: *const Self) Artifact {
     const b = self.b;
-    const llvm = self.llvm;
-
     return self.createClangLibrary(.{
         .name = "clangRewrite",
         .cxx_source_files = .{
@@ -435,7 +430,7 @@ fn buildRewrite(self: *const Self) Artifact {
         .link_libraries = &.{
             self.clang_artifacts.basic.core_lib,
             self.clang_artifacts.lex,
-            llvm.target_artifacts.support,
+            self.llvm.target_artifacts.support,
         },
     });
 }
@@ -443,7 +438,6 @@ fn buildRewrite(self: *const Self) Artifact {
 /// https://github.com/llvm/llvm-project/tree/llvmorg-21.1.8/clang/lib/Tooling
 fn buildTooling(self: *const Self) ClangTargetArtifacts.Tooling {
     const b = self.b;
-    const llvm = self.llvm;
 
     // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Tooling/Core/CMakeLists.txt
     const core = self.createClangLibrary(.{
@@ -461,7 +455,7 @@ fn buildTooling(self: *const Self) ClangTargetArtifacts.Tooling {
             self.clang_artifacts.basic.core_lib,
             self.clang_artifacts.lex,
             self.clang_artifacts.rewrite,
-            llvm.target_artifacts.support,
+            self.llvm.target_artifacts.support,
         },
     });
 
@@ -481,7 +475,7 @@ fn buildTooling(self: *const Self) ClangTargetArtifacts.Tooling {
             self.clang_artifacts.basic.core_lib,
             self.clang_artifacts.lex,
             core,
-            llvm.target_artifacts.support,
+            self.llvm.target_artifacts.support,
         },
     });
 
@@ -496,8 +490,6 @@ fn buildTooling(self: *const Self) ClangTargetArtifacts.Tooling {
 /// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Format/CMakeLists.txt
 fn buildFormat(self: *const Self) Artifact {
     const b = self.b;
-    const llvm = self.llvm;
-
     return self.createClangLibrary(.{
         .name = "clangFormat",
         .cxx_source_files = .{
@@ -514,7 +506,752 @@ fn buildFormat(self: *const Self) Artifact {
             self.clang_artifacts.lex,
             self.clang_artifacts.tooling.core,
             self.clang_artifacts.tooling.inclusions.core_lib,
-            llvm.target_artifacts.support,
+            self.llvm.target_artifacts.support,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/StaticAnalyzer/Checkers/CMakeLists.txt
+fn runStaticAnalysisGen(self: *const Self) *std.Build.Step.WriteFile {
+    const b = self.b;
+    const registry = b.addWriteFiles();
+    self.llvm.synthesizeHeader(registry, static_analyzer.synthesize_checkers.with(.{
+        .tblgen = self.clang_tblgen,
+        .extra_includes = &.{self.metadata.root.path(b, static_analyzer.checkers_include)},
+    }));
+    return registry;
+}
+
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Driver/CMakeLists.txt
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Driver/CMakeLists.txt
+fn buildDriver(self: *const Self) ArtifactWithGen {
+    const b = self.b;
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Driver/CMakeLists.txt
+    const registry = b.addWriteFiles();
+    self.llvm.synthesizeHeader(registry, driver.synthesize_opts);
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Driver/CMakeLists.txt
+    const lib = self.createClangLibrary(.{
+        .name = "clangDriver",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, driver.root),
+            .files = &driver.sources,
+        },
+        .additional_include_paths = &.{
+            registry.getDirectory(),
+            self.metadata.root.path(b, driver.root),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.llvm.target_artifacts.target_backends.parser.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.clang_artifacts.basic.core_lib,
+            self.llvm.target_artifacts.binary_format,
+            self.llvm.target_artifacts.machine_code.core_lib,
+            self.llvm.target_artifacts.object,
+            self.llvm.target_artifacts.option,
+            self.llvm.target_artifacts.profile_data.core_lib,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.llvm.target_artifacts.windows_support.driver,
+        },
+    });
+
+    return .{
+        .gen = registry,
+        .core_lib = lib,
+    };
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/APINotes/CMakeLists.txt
+fn buildAPINotes(self: *const Self) Artifact {
+    const b = self.b;
+    return self.createClangLibrary(.{
+        .name = "clangAPINotes",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, api_notes.root),
+            .files = &api_notes.sources,
+        },
+        .additional_include_paths = &.{
+            self.metadata.root.path(b, basic.root),
+            self.clang_artifacts.basic.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.clang_artifacts.basic.core_lib,
+            self.llvm.target_artifacts.bitcode.reader,
+            self.llvm.target_artifacts.bitstream_reader,
+            self.llvm.target_artifacts.support,
+        },
+    });
+}
+
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/AST/CMakeLists.txt
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/AST/CMakeLists.txt
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/ASTMatchers/CMakeLists.txt
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/ASTMatchers/Dynamic/CMakeLists.txt
+fn buildAST(self: *const Self) ClangTargetArtifacts.AST {
+    const b = self.b;
+    const registry = b.addWriteFiles();
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/AST/CMakeLists.txt
+    for (ast.synthesize_include_configs) |config| {
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.clang_include},
+        }));
+    }
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/AST/CMakeLists.txt
+    self.llvm.synthesizeHeader(registry, ast.synthesize_attr_doc_table.with(.{
+        .tblgen = self.clang_tblgen,
+        .extra_includes = &.{self.metadata.clang_include},
+    }));
+    self.llvm.synthesizeHeader(registry, ast.synthesize_opcodes.with(.{
+        .tblgen = self.clang_tblgen,
+        .extra_includes = &.{self.metadata.clang_include},
+    }));
+
+    const ast_core = self.createClangLibrary(.{
+        .name = "clangAST",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, ast.root),
+            .files = &ast.sources,
+        },
+        .additional_include_paths = &.{
+            self.clang_artifacts.basic.gen.getDirectory(),
+            registry.getDirectory(),
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.llvm.target_artifacts.intrinsics_gen.getDirectory(),
+            self.llvm.target_artifacts.target_backends.parser.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+            self.llvm.target_artifacts.binary_format,
+            self.llvm.target_artifacts.core,
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.frontend.hlsl,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+        },
+    });
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/ASTMatchers/CMakeLists.txt
+    const ast_matchers = self.createClangLibrary(.{
+        .name = "clangASTMatchers",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, ast.matchers_root),
+            .files = &ast.matchers_sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            registry.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.support,
+            ast_core,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+        },
+    });
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/ASTMatchers/Dynamic/CMakeLists.txt
+    const ast_dynamic_matchers = self.createClangLibrary(.{
+        .name = "clangDynamicASTMatchers",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, ast.matchers_dynamic_root),
+            .files = &ast.matchers_dynamic_sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            registry.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.support,
+            ast_core,
+            ast_matchers,
+            self.clang_artifacts.basic.core_lib,
+        },
+    });
+
+    return .{
+        .gen = registry,
+        .core_lib = ast_core,
+        .matchers = .{
+            .core_lib = ast_matchers,
+            .dynamic = ast_dynamic_matchers,
+        },
+    };
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Analysis/CMakeLists.txt
+fn buildAnalysis(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangAnalysis",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, ast.matchers_dynamic_root),
+            .files = &ast.matchers_dynamic_sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.ast.matchers.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/tree/llvmorg-21.1.8/clang/lib/Edit
+fn buildEdit(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangEdit",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, "clang/lib/Edit"),
+            .files = &.{ "Commit.cpp", "EditedSource.cpp", "RewriteObjCFoundationAPI.cpp" },
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Sema/CMakeLists.txt
+fn buildSema(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangSema",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, sema.root),
+            .files = &sema.sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.sema.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.core,
+            self.llvm.target_artifacts.demangle,
+            self.llvm.target_artifacts.frontend.hlsl,
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.machine_code.core_lib,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.api_notes,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.analysis,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.edit,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.support,
+        },
+    });
+}
+
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Serialization/CMakeLists.txt
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Serialization/CMakeLists.txt
+fn buildSerialization(self: *const Self) ArtifactWithGen {
+    const b = self.b;
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Serialization/CMakeLists.txt
+    const registry = b.addWriteFiles();
+    for (serialization.attr_synthesize_configs) |config| {
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.clang_include},
+        }));
+    }
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Serialization/CMakeLists.txt
+    const lib = self.createClangLibrary(.{
+        .name = "clangSerialization",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, sema.root),
+            .files = &sema.sources,
+        },
+        .additional_include_paths = &.{
+            self.metadata.root.path(b, serialization.root),
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.sema.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.bitcode.reader,
+            self.llvm.target_artifacts.bitstream_reader,
+            self.llvm.target_artifacts.object,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.analysis,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.sema.core_lib,
+        },
+    });
+
+    return .{
+        .gen = registry,
+        .core_lib = lib,
+    };
+}
+
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Parse/CMakeLists.txt
+/// - https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Parse/CMakeLists.txt
+fn buildParse(self: *const Self) ArtifactWithGen {
+    const b = self.b;
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/include/clang/Parse/CMakeLists.txt
+    const registry = b.addWriteFiles();
+    for (parse.synthesize_include_configs) |config| {
+        self.llvm.synthesizeHeader(registry, config.with(.{
+            .tblgen = self.clang_tblgen,
+            .extra_includes = &.{self.metadata.clang_include},
+        }));
+    }
+
+    // https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Parse/CMakeLists.txt
+    const lib = self.createClangLibrary(.{
+        .name = "clangParse",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, parse.root),
+            .files = &parse.sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            registry.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.sema.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.frontend.hlsl,
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.machine_code.core_lib,
+            self.llvm.target_artifacts.machine_code.parser,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.sema.core_lib,
+        },
+    });
+
+    return .{
+        .gen = registry,
+        .core_lib = lib,
+    };
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Frontend/CMakeLists.txt
+fn buildFrontendCore(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangFrontend",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, frontend.root),
+            .files = &frontend.sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.sema.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.parse.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+            self.llvm.target_artifacts.intrinsics_gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.bitcode.reader,
+            self.llvm.target_artifacts.bitstream_reader,
+            self.llvm.target_artifacts.option,
+            self.llvm.target_artifacts.profile_data.core_lib,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.api_notes,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.driver.core_lib,
+            self.clang_artifacts.edit,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.parse.core_lib,
+            self.clang_artifacts.sema.core_lib,
+            self.clang_artifacts.serialization.core_lib,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/InstallAPI/CMakeLists.txt
+fn buildInstallAPI(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangInstallAPI",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, install_api.root),
+            .files = &install_api.sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.text_api.core_lib,
+            self.llvm.target_artifacts.text_api.binary_reader,
+            self.llvm.target_artifacts.demangle,
+            self.llvm.target_artifacts.core,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Index/CMakeLists.txt
+fn buildIndex(self: *const Self) Artifact {
+    const root = self.metadata.root.path(self.b, index.root);
+    return self.createClangLibrary(.{
+        .name = "clangIndex",
+        .cxx_source_files = .{
+            .root = root,
+            .files = &index.sources,
+        },
+        .additional_include_paths = &.{
+            root,
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.sema.gen.getDirectory(),
+            self.clang_artifacts.serialization.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.core,
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.format,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.sema.core_lib,
+            self.clang_artifacts.serialization.core_lib,
+            self.clang_artifacts.tooling.core,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/ExtractAPI/CMakeLists.txt
+fn buildExtractAPI(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangExtractAPI",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, extract_api.root),
+            .files = &extract_api.sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+            self.llvm.target_artifacts.intrinsics_gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.index,
+            self.clang_artifacts.install_api,
+            self.clang_artifacts.lex,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Frontend/Rewrite/CMakeLists.txt
+fn buildFrontendRewrite(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangRewriteFrontend",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, frontend.rewrite_root),
+            .files = &frontend.rewrite_sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+            self.clang_artifacts.serialization.gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.edit,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.rewrite,
+            self.clang_artifacts.serialization.core_lib,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/CodeGen/CMakeLists.txt
+fn buildCodeGen(self: *const Self) Artifact {
+    const root = self.metadata.root.path(self.b, codegen.root);
+    return self.createClangLibrary(.{
+        .name = "clangCodeGen",
+        .cxx_source_files = .{
+            .root = root,
+            .files = &codegen.sources,
+        },
+        .additional_include_paths = &.{
+            root,
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.llvm.configure_phase_artifacts.gen_vt.getDirectory(),
+            self.llvm.target_artifacts.intrinsics_gen.getDirectory(),
+            self.llvm.target_artifacts.target_backends.parser.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.serialization.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+            self.llvm.metadata.extension_def.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.transforms.aggressive_inst_combine,
+            self.llvm.target_artifacts.analysis,
+            self.llvm.target_artifacts.bitcode.reader,
+            self.llvm.target_artifacts.bitcode.writer,
+            self.llvm.target_artifacts.codegen.types,
+            self.llvm.target_artifacts.core,
+            self.llvm.target_artifacts.transforms.coroutines,
+            self.llvm.target_artifacts.profile_data.coverage,
+            self.llvm.target_artifacts.demangle,
+            self.llvm.target_artifacts.extensions,
+            self.llvm.target_artifacts.frontend.driver,
+            self.llvm.target_artifacts.frontend.hlsl,
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.frontend.offloading,
+            self.llvm.target_artifacts.transforms.hip_std_par,
+            self.llvm.target_artifacts.transforms.ipo,
+            self.llvm.target_artifacts.ir_printer,
+            self.llvm.target_artifacts.ir_reader,
+            self.llvm.target_artifacts.transforms.inst_combine,
+            self.llvm.target_artifacts.transforms.instrumentation,
+            self.llvm.target_artifacts.lto,
+            self.llvm.target_artifacts.linker,
+            self.llvm.target_artifacts.machine_code.core_lib,
+            self.llvm.target_artifacts.transforms.obj_carc,
+            self.llvm.target_artifacts.object,
+            self.llvm.target_artifacts.passes,
+            self.llvm.target_artifacts.profile_data.core_lib,
+            self.llvm.target_artifacts.transforms.scalar,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.core_lib,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.llvm.target_artifacts.transforms.utils,
+
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.analysis,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.serialization.core_lib,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/CrossTU/CMakeLists.txt
+fn buildCrossTU(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangCrossTU",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, "clang/lib/CrossTU"),
+            .files = &.{"CrossTranslationUnit.cpp"},
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.index,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/StaticAnalyzer/Core/CMakeLists.txt
+fn buildSACore(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangStaticAnalyzerCore",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, static_analyzer.core_root),
+            .files = &static_analyzer.core_sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.ast.matchers.core_lib,
+            self.clang_artifacts.analysis,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.cross_tu,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.rewrite,
+            self.clang_artifacts.tooling.core,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/tree/llvmorg-21.1.8/clang/lib/StaticAnalyzer/Checkers
+fn buildSACheckers(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangStaticAnalyzerCheckers",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, static_analyzer.checkers_root),
+            .files = &static_analyzer.checkers_sources,
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.frontend.open_mp,
+            self.llvm.target_artifacts.support,
+            self.llvm.target_artifacts.target_backends.parser.core_lib,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.ast.matchers.core_lib,
+            self.clang_artifacts.analysis,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.static_analyzer.core,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/StaticAnalyzer/Frontend/CMakeLists.txt
+fn buildSAFrontend(self: *const Self) Artifact {
+    const b = self.b;
+    return self.createClangLibrary(.{
+        .name = "clangStaticAnalyzerFrontend",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(b, static_analyzer.frontend_root),
+            .files = &static_analyzer.frontend_sources,
+        },
+        .additional_include_paths = &.{
+            self.metadata.root.path(b, static_analyzer.checkers_include),
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+        },
+        .config_headers = &.{ self.config_h, self.clang_artifacts.basic.version_inc },
+        .link_libraries = &.{
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.ast.core_lib,
+            self.clang_artifacts.ast.matchers.core_lib,
+            self.clang_artifacts.analysis,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.cross_tu,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.lex,
+            self.clang_artifacts.static_analyzer.checkers,
+            self.clang_artifacts.static_analyzer.core,
+        },
+    });
+}
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/FrontendTool/CMakeLists.txt
+fn buildFrontendTool(self: *const Self) Artifact {
+    return self.createClangLibrary(.{
+        .name = "clangFrontendTool",
+        .cxx_source_files = .{
+            .root = self.metadata.root.path(self.b, "clang/lib/FrontendTool"),
+            .files = &.{"ExecuteCompilerInvocation.cpp"},
+        },
+        .additional_include_paths = &.{
+            self.llvm.target_artifacts.frontend.gen.getDirectory(),
+            self.clang_artifacts.ast.gen.getDirectory(),
+            self.clang_artifacts.basic.gen.getDirectory(),
+            self.clang_artifacts.driver.gen.getDirectory(),
+            self.clang_artifacts.static_analyzer.gen.getDirectory(),
+        },
+        .config_headers = &.{self.config_h},
+        .link_libraries = &.{
+            self.llvm.target_artifacts.option,
+            self.llvm.target_artifacts.support,
+            self.clang_artifacts.basic.core_lib,
+            self.clang_artifacts.codegen,
+            self.clang_artifacts.driver.core_lib,
+            self.clang_artifacts.extract_api,
+            self.clang_artifacts.frontend.core_lib,
+            self.clang_artifacts.frontend.rewrite,
+            self.clang_artifacts.static_analyzer.frontend,
         },
     });
 }
@@ -522,8 +1259,6 @@ fn buildFormat(self: *const Self) Artifact {
 /// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/tools/clang-format/CMakeLists.txt
 fn buildFormatTool(self: *const Self) Artifact {
     const b = self.b;
-    const llvm = self.llvm;
-
     return self.createClangExecutable(.{
         .name = "clang-format",
         .cxx_source_files = .{
@@ -540,7 +1275,7 @@ fn buildFormatTool(self: *const Self) Artifact {
             self.clang_artifacts.format,
             self.clang_artifacts.rewrite,
             self.clang_artifacts.tooling.core,
-            llvm.target_artifacts.support,
+            self.llvm.target_artifacts.support,
         },
     });
 }
@@ -562,28 +1297,28 @@ pub fn allClangArtifacts(self: *const Self) []Artifact {
         self.clang_artifacts.ast.matchers.dynamic,
         self.clang_artifacts.codegen,
         self.clang_artifacts.cross_tu,
-        self.clang_artifacts.directory_watcher,
         self.clang_artifacts.edit,
         self.clang_artifacts.extract_api,
         self.clang_artifacts.format,
-        self.clang_artifacts.frontend,
+        self.clang_artifacts.frontend.core_lib,
+        self.clang_artifacts.frontend.rewrite,
+        self.clang_artifacts.frontend.tool,
         self.clang_artifacts.index,
         self.clang_artifacts.install_api,
-        self.clang_artifacts.interpreter,
         self.clang_artifacts.parse.core_lib,
         self.clang_artifacts.serialization.core_lib,
         self.clang_artifacts.static_analyzer.checkers,
         self.clang_artifacts.static_analyzer.core,
         self.clang_artifacts.static_analyzer.frontend,
-        self.clang_artifacts.tooling.ast_diff,
+        // self.clang_artifacts.tooling.ast_diff,
         self.clang_artifacts.tooling.core,
-        self.clang_artifacts.tooling.core_lib,
-        self.clang_artifacts.tooling.dep_scanning,
+        // self.clang_artifacts.tooling.core_lib,
+        // self.clang_artifacts.tooling.dep_scanning,
         self.clang_artifacts.tooling.inclusions.core_lib,
-        self.clang_artifacts.tooling.inclusions.stdlib,
-        self.clang_artifacts.tooling.refactoring,
-        self.clang_artifacts.tooling.syntax,
-        self.clang_artifacts.tooling.transformer,
+            // self.clang_artifacts.tooling.inclusions.stdlib,
+            // self.clang_artifacts.tooling.refactoring,
+            // self.clang_artifacts.tooling.syntax,
+            // self.clang_artifacts.tooling.transformer,
     }) catch @panic("OOM");
     return all_artifacts.items;
 }

@@ -1,5 +1,8 @@
 //! https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/Driver/CMakeLists.txt
-pub const root = "clang/libs/Driver";
+const LLVMBuilder = @import("../../LLVMBuilder.zig");
+const SynthesizeHeaderConfig = LLVMBuilder.SynthesizeHeaderConfig;
+
+pub const root = "clang/lib/Driver";
 pub const sources = [_][]const u8{
     "Action.cpp",
     "Compilation.cpp",
@@ -77,4 +80,13 @@ pub const sources = [_][]const u8{
     "ToolChains/ZOS.cpp",
     "Types.cpp",
     "XRayArgs.cpp",
+};
+
+pub const synthesize_opts: SynthesizeHeaderConfig = .{
+    .gen_conf = .{
+        .name = "Options",
+        .td_file = "clang/include/clang/Driver/Options.td",
+        .instruction = .{ .action = "-gen-opt-parser-defs" },
+    },
+    .virtual_path = "clang/Driver/Options.inc",
 };

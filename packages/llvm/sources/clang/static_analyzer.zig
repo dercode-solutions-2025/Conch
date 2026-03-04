@@ -142,10 +142,12 @@ pub const checkers_sources = [_][]const u8{
     "WebKit/RawPtrRefMemberChecker.cpp",
 };
 
+pub const checkers_include = "clang/include/clang/StaticAnalyzer/Checkers/";
+
 pub const synthesize_checkers: SynthesizeHeaderConfig = .{
     .gen_conf = .{
         .name = "ClangSACheckers",
-        .td_file = "clang/include/clang/StaticAnalyzer/Checkers/Checkers.td",
+        .td_file = checkers_include ++ "Checkers.td",
         .instruction = .{ .action = "-gen-clang-sa-checkers" },
     },
     .virtual_path = "clang/StaticAnalyzer/Checkers/Checkers.inc",

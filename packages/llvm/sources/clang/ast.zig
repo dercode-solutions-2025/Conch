@@ -4,7 +4,7 @@ const SynthesizeHeaderConfig = LLVMBuilder.SynthesizeHeaderConfig;
 
 const basic = @import("basic.zig");
 
-pub const root = "clang/lib/AST";
+pub const root = "clang/lib/AST/";
 pub const sources = [_][]const u8{
     "APValue.cpp",
     "ASTConcept.cpp",
@@ -296,4 +296,22 @@ pub const synthesize_include_configs = [_]SynthesizeHeaderConfig{
         },
         .virtual_path = "clang/AST/StmtDataCollectors.inc",
     },
+};
+
+/// https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/clang/lib/ASTMatchers
+pub const matchers_root = "clang/lib/ASTMatchers/";
+pub const matchers_sources = [_][]const u8{
+    "ASTMatchFinder.cpp",
+    "ASTMatchersInternal.cpp",
+    "GtestMatchers.cpp",
+    "LowLevelHelpers.cpp",
+};
+
+pub const matchers_dynamic_root = matchers_root ++ "Dynamic";
+pub const matchers_dynamic_sources = [_][]const u8{
+    "Diagnostics.cpp",
+    "Marshallers.cpp",
+    "Parser.cpp",
+    "Registry.cpp",
+    "VariantValue.cpp",
 };

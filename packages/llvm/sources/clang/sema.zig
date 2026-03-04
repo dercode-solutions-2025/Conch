@@ -4,7 +4,7 @@ const SynthesizeHeaderConfig = LLVMBuilder.SynthesizeHeaderConfig;
 
 const basic = @import("basic.zig");
 
-pub const root = "clang/lib/Sema";
+pub const root = "clang/lib/Sema/";
 pub const sources = [_][]const u8{
     "AnalysisBasedWarnings.cpp",
     "CheckExprLifetime.cpp",
@@ -103,8 +103,8 @@ pub const open_cl_synthesize: SynthesizeHeaderConfig = .{
     .virtual_path = "OpenCLBuiltins.inc",
 };
 
-pub const include_root = "clang/include/clang/Sema";
-pub const attr_td = basic.attr_td;
+const include_root = "clang/include/clang/Sema";
+const attr_td = basic.attr_td;
 
 pub const attr_synthesize_configs = [_]SynthesizeHeaderConfig{
     .{
