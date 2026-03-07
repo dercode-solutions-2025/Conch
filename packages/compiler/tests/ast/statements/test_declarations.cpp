@@ -7,14 +7,13 @@
 
 #include "array.hpp"
 
-#include "ast/statements/test_declarations.hpp"
-#include "ast/test_helpers.hpp"
+#include "ast/common_helpers.hpp"
+#include "ast/statements/helpers.hpp"
 
 #include "ast/expressions/function.hpp"
 #include "ast/expressions/identifier.hpp"
 #include "ast/expressions/primitive.hpp"
 #include "ast/expressions/type.hpp"
-#include "ast/statements/decl.hpp"
 
 #include "lexer/keywords.hpp"
 #include "lexer/operators.hpp"
@@ -37,21 +36,23 @@ auto test_decl(std::string_view input, const ast::DeclStatement& expected) -> vo
 
 } // namespace helpers
 
+using ExplicitTypeVariant = ast::ExplicitType::ExplicitTypeVariant;
+
 TEST_CASE("Explicit primitive declaration") {
-    helpers::test_decl("var a: int = 2;",
-                       ast::DeclStatement{
-                           Token{keywords::VAR},
-                           make_box<ast::IdentifierExpression>(Token{TokenType::IDENT, "a"}),
-                           make_box<ast::TypeExpression>(
-                               Token{TokenType::COLON, ":"},
-                               ast::ExplicitType{
-                                   {},
-                                   ast::ExplicitTypeVariant{
-                                       make_box<ast::IdentifierExpression>(Token{keywords::INT})},
-                               }),
-                           make_box<ast::SignedIntegerExpression>(Token{TokenType::INT_10, "2"}, 2),
-                           ast::DeclModifiers::VARIABLE,
-                       });
+    helpers::test_decl(
+        "var a: int = 2;",
+        ast::DeclStatement{
+            Token{keywords::VAR},
+            make_box<ast::IdentifierExpression>(Token{TokenType::IDENT, "a"}),
+            make_box<ast::TypeExpression>(
+                Token{TokenType::COLON, ":"},
+                ast::ExplicitType{
+                    {},
+                    ExplicitTypeVariant{make_box<ast::IdentifierExpression>(Token{keywords::INT})},
+                }),
+            make_box<ast::SignedIntegerExpression>(Token{TokenType::INT_10, "2"}, 2),
+            ast::DeclModifiers::VARIABLE,
+        });
 }
 
 TEST_CASE("Explicit non-primitive declaration") {
@@ -63,7 +64,7 @@ TEST_CASE("Explicit non-primitive declaration") {
                                Token{TokenType::COLON, ":"},
                                ast::ExplicitType{
                                    {},
-                                   ast::ExplicitTypeVariant{make_box<ast::IdentifierExpression>(
+                                   ExplicitTypeVariant{make_box<ast::IdentifierExpression>(
                                        Token{TokenType::IDENT, "Foo"})},
                                }),
                            make_box<ast::IdentifierExpression>(Token{TokenType::IDENT, "bar"}),
@@ -111,7 +112,7 @@ TEST_CASE("Correct declaration modifiers") {
                         Token{TokenType::COLON, ":"},
                         ast::ExplicitType{
                             {},
-                            ast::ExplicitTypeVariant{
+                            ExplicitTypeVariant{
                                 make_box<ast::IdentifierExpression>(Token{keywords::INT})},
                         }),
                     nullopt,

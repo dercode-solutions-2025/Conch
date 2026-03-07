@@ -17,9 +17,6 @@ class FunctionExpression;
 class USizeIntegerExpression;
 
 class ExplicitType;
-using ExplicitIdentType     = Box<IdentifierExpression>;
-using ExplicitFunctionType  = Box<FunctionExpression>;
-using ExplicitRecursiveType = Box<ExplicitType>;
 
 class ExplicitArrayType {
   public:
@@ -44,10 +41,15 @@ class ExplicitArrayType {
     friend class TypeExpression;
 };
 
-using ExplicitTypeVariant =
-    std::variant<ExplicitIdentType, ExplicitFunctionType, ExplicitArrayType, ExplicitRecursiveType>;
-
 class ExplicitType {
+  public:
+    using ExplicitIdentType     = Box<IdentifierExpression>;
+    using ExplicitFunctionType  = Box<FunctionExpression>;
+    using ExplicitRecursiveType = Box<ExplicitType>;
+
+    using ExplicitTypeVariant = std::
+        variant<ExplicitIdentType, ExplicitFunctionType, ExplicitArrayType, ExplicitRecursiveType>;
+
   public:
     explicit ExplicitType(TypeModifier modifier, ExplicitTypeVariant type) noexcept;
     ~ExplicitType();

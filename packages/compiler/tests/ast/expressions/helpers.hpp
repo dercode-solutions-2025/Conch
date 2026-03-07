@@ -3,9 +3,11 @@
 #include <string_view>
 #include <variant>
 
-#include <catch2/catch_test_macros.hpp>
+#include "optional.hpp"
 
-#include "ast/test_helpers.hpp"
+#include "lexer/token.hpp"
+
+#include "ast/common_helpers.hpp"
 
 #include "parser/parser.hpp"
 
@@ -15,10 +17,10 @@
 namespace conch::tests::helpers {
 
 template <ast::PrimitiveNode N>
-auto primitive(std::string_view                                       input,
-               std::string_view                                       node_token_slice,
-               Optional<TokenType>                                    expected_type,
-               std::variant<typename N::value_type, ParserDiagnostic> expected_value) -> void {
+auto test_primitive(std::string_view                                       input,
+                    std::string_view                                       node_token_slice,
+                    Optional<TokenType>                                    expected_type,
+                    std::variant<typename N::value_type, ParserDiagnostic> expected_value) -> void {
     using T = typename N::value_type;
     Parser p{input};
     auto [ast, errors] = p.consume();
@@ -41,10 +43,13 @@ auto primitive(std::string_view                                       input,
 }
 
 template <ast::PrimitiveNode N>
-auto primitive(std::string_view                                       input,
-               Optional<TokenType>                                    expected_type,
-               std::variant<typename N::value_type, ParserDiagnostic> expected_value) -> void {
-    primitive<N>(input, input, expected_type, expected_value);
+auto test_primitive(std::string_view                                       input,
+                    Optional<TokenType>                                    expected_type,
+                    std::variant<typename N::value_type, ParserDiagnostic> expected_value) -> void {
+    test_primitive<N>(input, input, expected_type, expected_value);
 }
+
+auto test_ident(std::string_view input, Optional<TokenType> expected_type = TokenType::IDENT)
+    -> void;
 
 } // namespace conch::tests::helpers

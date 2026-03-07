@@ -24,9 +24,14 @@ auto ImportStatement::parse(Parser& parser) -> Expected<Box<Statement>, ParserDi
         imported = downcast<IdentifierExpression>(TRY(IdentifierExpression::parse(parser)));
     } else if (parser.peek_token_is(TokenType::STRING)) {
         TRY(parser.expect_peek(TokenType::STRING));
-        imported = downcast<StringExpression>(TRY(StringExpression::parse(parser)));
+        auto string = downcast<StringExpression>(TRY(StringExpression::parse(parser)));
+
+        if (string->get_value().empty()) {
+            return make_parser_unexpected(ParserError::EMPTY_USER_IMPORT, string->get_token());
+        }
+        imported = std::move(string);
     } else {
-        return make_parser_unexpected(ParserError::ILLEGAL_IMPORT, parser.peek_token());
+        return make_parser_unexpected(ParserError::ILLEGAL_IMPORT_TYPE, parser.peek_token());
     }
 
     Optional<Box<IdentifierExpression>> imported_alias;

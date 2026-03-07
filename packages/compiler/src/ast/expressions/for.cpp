@@ -9,10 +9,14 @@
 
 namespace conch::ast {
 
+ForLoopCapture::Valued::Valued(TypeModifier modifier, Box<IdentifierExpression> name) noexcept
+    : modifier_{std::move(modifier)}, name_{std::move(name)} {}
+
+ForLoopCapture::Valued::~Valued() = default;
+
 ForLoopCapture::ForLoopCapture() noexcept : underlying_{std::monostate{}} {}
 
-ForLoopCapture::ForLoopCapture(TypeModifier modifier, Box<IdentifierExpression> name) noexcept
-    : underlying_{Valued{std::move(modifier), std::move(name)}} {}
+ForLoopCapture::ForLoopCapture(Valued valued) noexcept : underlying_{Valued{std::move(valued)}} {}
 
 ForLoopCapture::~ForLoopCapture() = default;
 
@@ -26,7 +30,7 @@ auto ForLoopCapture::is_equal(const ForLoopCapture& other) const noexcept -> boo
     if (!other.is_valued()) { return false; }
     const auto& this_v  = get_valued();
     const auto& other_v = get_valued();
-    return this_v.modifier == other_v.modifier && *this_v.name == *other_v.name;
+    return this_v.modifier_ == other_v.modifier_ && *this_v.name_ == *other_v.name_;
 }
 
 ForLoopExpression::ForLoopExpression(const Token&                          start_token,
@@ -84,7 +88,7 @@ auto ForLoopExpression::parse(Parser& parser) -> Expected<Box<Expression>, Parse
                                                   capture->get_token());
                 }
 
-                captures->emplace_back(ForLoopCapture{
+                captures->emplace_back(ForLoopCapture::Valued{
                     std::move(modifier), Node::downcast<IdentifierExpression>(std::move(capture))});
             }
 

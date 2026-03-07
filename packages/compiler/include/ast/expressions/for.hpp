@@ -16,14 +16,34 @@ class IdentifierExpression;
 
 class ForLoopCapture {
   public:
-    struct Valued {
-        TypeModifier              modifier;
-        Box<IdentifierExpression> name;
+    class Valued {
+      public:
+        explicit Valued(TypeModifier modifier, Box<IdentifierExpression> name) noexcept;
+        ~Valued();
+
+        Valued(const Valued&)                        = delete;
+        auto operator=(const Valued&) -> Valued&     = delete;
+        Valued(Valued&&) noexcept                    = default;
+        auto operator=(Valued&&) noexcept -> Valued& = default;
+
+        [[nodiscard]] auto get_modifier() const noexcept -> const TypeModifier& {
+            return modifier_;
+        }
+
+        [[nodiscard]] auto get_name() const noexcept -> const IdentifierExpression& {
+            return *name_;
+        }
+
+      private:
+        TypeModifier              modifier_;
+        Box<IdentifierExpression> name_;
+
+        friend class ForLoopCapture;
     };
 
   public:
     explicit ForLoopCapture() noexcept;
-    explicit ForLoopCapture(TypeModifier modifier, Box<IdentifierExpression> name) noexcept;
+    explicit ForLoopCapture(Valued valued) noexcept;
     ~ForLoopCapture();
 
     ForLoopCapture(const ForLoopCapture&)                        = delete;

@@ -1,8 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <fmt/format.h>
 
-#include "ast/expressions/test_identifiers.hpp"
-#include "ast/test_helpers.hpp"
+#include "ast/expressions/helpers.hpp"
 
 #include "lexer/keywords.hpp"
 
