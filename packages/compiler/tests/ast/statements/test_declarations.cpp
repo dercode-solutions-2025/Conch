@@ -148,14 +148,7 @@ static auto test_decl_fail(std::initializer_list<Keyword> modifiers,
     std::stringstream ss;
     for (const auto& keyword : modifiers) { ss << keyword.first << " "; }
     ss << init;
-
-    Parser p{ss.view()};
-    auto [ast, errors] = p.consume();
-    for (const auto& n : ast) { fmt::println("{}", *n); }
-    REQUIRE(ast.empty());
-
-    REQUIRE(errors.size() == 1);
-    REQUIRE(errors[0] == expected_error);
+    helpers::test_fail(ss.view(), expected_error);
 }
 
 TEST_CASE("Mutability restrictions") {
