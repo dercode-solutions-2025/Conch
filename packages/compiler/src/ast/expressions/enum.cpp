@@ -10,7 +10,6 @@ namespace conch::ast {
 Enumeration::Enumeration(Box<IdentifierExpression> enumeration,
                          Optional<Box<Expression>> value) noexcept
     : enumeration_{std::move(enumeration)}, value_{std::move(value)} {}
-
 Enumeration::~Enumeration() = default;
 
 EnumExpression::EnumExpression(const Token&                        start_token,
@@ -18,7 +17,6 @@ EnumExpression::EnumExpression(const Token&                        start_token,
                                std::vector<Enumeration>            enumerations) noexcept
     : ExprBase{start_token}, underlying_{std::move(underlying)},
       enumerations_{std::move(enumerations)} {}
-
 EnumExpression::~EnumExpression() = default;
 
 auto EnumExpression::accept(Visitor& v) const -> void { v.visit(*this); }

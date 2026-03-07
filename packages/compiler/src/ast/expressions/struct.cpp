@@ -2,7 +2,7 @@
 
 #include "ast/expressions/struct.hpp"
 
-#include "ast/statements/decl.hpp"
+#include "ast/statements/declaration.hpp"
 #include "ast/visitor.hpp"
 
 namespace conch::ast {
@@ -10,7 +10,6 @@ namespace conch::ast {
 StructExpression::StructExpression(const Token&                    start_token,
                                    std::vector<Box<DeclStatement>> members) noexcept
     : ExprBase{start_token}, members_{std::move(members)} {}
-
 StructExpression::~StructExpression() = default;
 
 auto StructExpression::accept(Visitor& v) const -> void { v.visit(*this); }

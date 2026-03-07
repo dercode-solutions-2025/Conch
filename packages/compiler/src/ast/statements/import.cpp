@@ -10,7 +10,6 @@ ImportStatement::ImportStatement(const Token&                           start_to
                                  std::variant<ModuleImport, UserImport> imported,
                                  Optional<Box<IdentifierExpression>>    alias) noexcept
     : StmtBase{start_token}, imported_{std::move(imported)}, alias_{std::move(alias)} {}
-
 ImportStatement::~ImportStatement() = default;
 
 auto ImportStatement::accept(Visitor& v) const -> void { v.visit(*this); }

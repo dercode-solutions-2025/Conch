@@ -13,7 +13,7 @@
 #include "ast/expressions/identifier.hpp"
 #include "ast/expressions/primitive.hpp"
 #include "ast/expressions/type.hpp"
-#include "ast/statements/decl.hpp"
+#include "ast/statements/declaration.hpp"
 
 #include "lexer/keywords.hpp"
 #include "lexer/operators.hpp"

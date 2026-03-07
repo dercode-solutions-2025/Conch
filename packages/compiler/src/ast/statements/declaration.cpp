@@ -1,4 +1,4 @@
-#include "ast/statements/decl.hpp"
+#include "ast/statements/declaration.hpp"
 
 #include "ast/expressions/function.hpp"
 #include "ast/expressions/identifier.hpp"
@@ -14,7 +14,6 @@ DeclStatement::DeclStatement(const Token&              start_token,
                              DeclModifiers             modifiers) noexcept
     : StmtBase{start_token}, ident_{std::move(ident)}, type_{std::move(type)},
       value_{std::move(value)}, modifiers_{modifiers} {}
-
 DeclStatement::~DeclStatement() = default;
 
 auto DeclStatement::accept(Visitor& v) const -> void { v.visit(*this); }

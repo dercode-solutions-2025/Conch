@@ -9,7 +9,6 @@ DoWhileLoopExpression::DoWhileLoopExpression(const Token&        start_token,
                                              Box<BlockStatement> block,
                                              Box<Expression>     condition) noexcept
     : ExprBase{start_token}, block_{std::move(block)}, condition_{std::move(condition)} {}
-
 DoWhileLoopExpression::~DoWhileLoopExpression() = default;
 
 auto DoWhileLoopExpression::accept(Visitor& v) const -> void { v.visit(*this); }

@@ -13,7 +13,6 @@ WhileLoopExpression::WhileLoopExpression(const Token&              start_token,
     : ExprBase{start_token}, condition_{std::move(condition)},
       continuation_{std::move(continuation)}, block_{std::move(block)},
       non_break_{std::move(non_break)} {}
-
 WhileLoopExpression::~WhileLoopExpression() = default;
 
 auto WhileLoopExpression::accept(Visitor& v) const -> void { v.visit(*this); }

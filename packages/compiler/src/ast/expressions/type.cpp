@@ -10,12 +10,10 @@ namespace conch::ast {
 ExplicitArrayType::ExplicitArrayType(Box<Expression>   dimension,
                                      Box<ExplicitType> inner_type) noexcept
     : dimension_{std::move(dimension)}, inner_type_{std::move(inner_type)} {}
-
 ExplicitArrayType::~ExplicitArrayType() = default;
 
 ExplicitType::ExplicitType(TypeModifier modifier, ExplicitTypeVariant type) noexcept
     : modifier_{std::move(modifier)}, type_{std::move(type)} {}
-
 ExplicitType::~ExplicitType() = default;
 
 [[nodiscard]] auto ExplicitType::parse(Parser& parser) -> Expected<ExplicitType, ParserDiagnostic> {
@@ -98,7 +96,6 @@ auto ExplicitType::is_equal(const ExplicitType& other) const noexcept -> bool {
 
 TypeExpression::TypeExpression(const Token& start_token, Optional<ExplicitType> exp) noexcept
     : ExprBase{start_token}, explicit_{std::move(exp)} {}
-
 TypeExpression::~TypeExpression() = default;
 
 auto TypeExpression::accept(Visitor& v) const -> void { v.visit(*this); }

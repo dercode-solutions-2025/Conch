@@ -14,13 +14,11 @@ namespace conch::ast {
 FunctionParameter::FunctionParameter(Box<IdentifierExpression> name,
                                      Box<TypeExpression>       type) noexcept
     : name_{std::move(name)}, type_{std::move(type)} {}
-
 FunctionParameter::~FunctionParameter() = default;
 
 SelfParameter::SelfParameter(Optional<TypeModifier>    modifier,
                              Box<IdentifierExpression> name) noexcept
     : modifier_{std::move(modifier)}, name_{std::move(name)} {}
-
 SelfParameter::~SelfParameter() = default;
 
 FunctionExpression::FunctionExpression(const Token&                   start_token,
@@ -32,7 +30,6 @@ FunctionExpression::FunctionExpression(const Token&                   start_toke
     : ExprBase{start_token}, mutable_{mut}, self_{std::move(self)},
       parameters_{std::move(parameters)}, return_type_{std::move(return_type)},
       body_{std::move(body)} {}
-
 FunctionExpression::~FunctionExpression() = default;
 
 auto FunctionExpression::accept(Visitor& v) const -> void { v.visit(*this); }

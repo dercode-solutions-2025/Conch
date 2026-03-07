@@ -9,7 +9,6 @@ ScopeResolutionExpression::ScopeResolutionExpression(const Token&              s
                                                      Box<Expression>           outer,
                                                      Box<IdentifierExpression> inner) noexcept
     : ExprBase{start_token}, outer_{std::move(outer)}, inner_{std::move(inner)} {}
-
 ScopeResolutionExpression::~ScopeResolutionExpression() = default;
 
 auto ScopeResolutionExpression::accept(Visitor& v) const -> void { v.visit(*this); }
