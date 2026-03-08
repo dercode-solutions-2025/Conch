@@ -35,7 +35,6 @@ enum class NodeKind : u8 {
     UNARY_EXPRESSION,
     REFERENCE_EXPRESSION,
     DEREFERENCE_EXPRESSION,
-    IMPLICIT_ACCESS_EXPRESSION,
     STRING_EXPRESSION,
     SIGNED_INTEGER_EXPRESSION,
     SIGNED_LONG_INTEGER_EXPRESSION,
@@ -61,6 +60,12 @@ enum class NodeKind : u8 {
     JUMP_STATEMENT,
 };
 
+#define MAKE_AST_COPY_MOVE(NodeType)                            \
+    NodeType(const NodeType&)                        = delete;  \
+    auto operator=(const NodeType&)->NodeType&       = delete;  \
+    NodeType(NodeType&&) noexcept                    = default; \
+    auto operator=(NodeType&&) noexcept -> NodeType& = delete;
+
 class Node;
 
 // A type that can be anything in the Node inheritance hierarchy
@@ -78,10 +83,7 @@ class Node {
     Node()          = delete;
     virtual ~Node() = default;
 
-    Node(const Node&)                = delete;
-    Node& operator=(const Node&)     = delete;
-    Node(Node&&) noexcept            = default;
-    Node& operator=(Node&&) noexcept = delete;
+    MAKE_AST_COPY_MOVE(Node)
 
     virtual auto accept(Visitor& v) const -> void = 0;
 
@@ -132,6 +134,7 @@ template <typename Derived, typename Base> class NodeBase : public Base {
 class Expression : public Node {
   protected:
     using Node::Node;
+    MAKE_AST_COPY_MOVE(Expression)
 
     virtual auto is_equal(const Node& other) const noexcept -> bool override = 0;
 };
@@ -144,6 +147,7 @@ template <typename Derived> class ExprBase : public NodeBase<Derived, Expression
 class Statement : public Node {
   protected:
     using Node::Node;
+    MAKE_AST_COPY_MOVE(Statement)
 
     virtual auto is_equal(const Node& other) const noexcept -> bool override = 0;
 };

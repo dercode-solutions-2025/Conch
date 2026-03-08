@@ -11,6 +11,8 @@ class AssignmentExpression : public InfixExpression<AssignmentExpression> {
 
   public:
     using InfixExpression::InfixExpression;
+    MAKE_AST_COPY_MOVE(AssignmentExpression)
+
     using InfixExpression::parse;
 };
 

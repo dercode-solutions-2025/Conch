@@ -10,7 +10,7 @@
 
 namespace conch::ast {
 
-#define MUTUALLY_EXCLUSIVE_TYPE_QUERY(name, modifier)       \
+#define MAKE_MUTUALLY_EXCLUSIVE_TYPE_QUERY(name, modifier)  \
     [[nodiscard]] auto is_##name() const noexcept -> bool { \
         if (is_value()) { return false; }                   \
         return *underlying_ == modifier;                    \
@@ -39,19 +39,19 @@ class TypeModifier {
     // Whether or not the type is a 'value' type (no modifier), mutually exclusive result.
     [[nodiscard]] auto is_value() const noexcept -> bool { return !underlying_; }
 
-    MUTUALLY_EXCLUSIVE_TYPE_QUERY(mutable_ref, Modifier::MUT_REF)
-    MUTUALLY_EXCLUSIVE_TYPE_QUERY(const_ref, Modifier::REF)
+    MAKE_MUTUALLY_EXCLUSIVE_TYPE_QUERY(mutable_ref, Modifier::MUT_REF)
+    MAKE_MUTUALLY_EXCLUSIVE_TYPE_QUERY(const_ref, Modifier::REF)
     [[nodiscard]] auto is_ref() const noexcept -> bool {
         return is_mutable_ref() || is_const_ref();
     }
 
-    MUTUALLY_EXCLUSIVE_TYPE_QUERY(mutable_ptr, Modifier::MUT_PTR)
-    MUTUALLY_EXCLUSIVE_TYPE_QUERY(const_ptr, Modifier::PTR)
+    MAKE_MUTUALLY_EXCLUSIVE_TYPE_QUERY(mutable_ptr, Modifier::MUT_PTR)
+    MAKE_MUTUALLY_EXCLUSIVE_TYPE_QUERY(const_ptr, Modifier::PTR)
     [[nodiscard]] auto is_ptr() const noexcept -> bool {
         return is_mutable_ptr() || is_const_ptr();
     }
 
-    MUTUALLY_EXCLUSIVE_TYPE_QUERY(voltaile, Modifier::VOLATILE)
+    MAKE_MUTUALLY_EXCLUSIVE_TYPE_QUERY(voltaile, Modifier::VOLATILE)
 
     friend auto operator==(const TypeModifier& lhs, const TypeModifier& rhs) noexcept -> bool {
         return lhs.underlying_ == rhs.underlying_;

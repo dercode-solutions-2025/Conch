@@ -13,10 +13,7 @@ namespace helpers {
 
 auto test_ident(std::string_view input, Optional<TokenType> expected_type = TokenType::IDENT)
     -> void {
-    const Token start_token{*expected_type, trim_semicolons(input)};
-    test_stmt(
-        input,
-        ast::ExpressionStatement{start_token, make_box<ast::IdentifierExpression>(start_token)});
+    test_expr_stmt(input, ast::IdentifierExpression(Token{*expected_type, trim_semicolons(input)}));
 }
 
 } // namespace helpers
@@ -30,6 +27,13 @@ TEST_CASE("Normal identifiers") {
     helpers::test_ident("string;", TokenType::STRING_TYPE);
     helpers::test_ident("bool;", TokenType::BOOL_TYPE);
     helpers::test_ident("void;", TokenType::VOID_TYPE);
+}
+
+TEST_CASE("Non-terminated identifier") {
+    helpers::test_fail(
+        "foobar",
+        ParserDiagnostic{
+            "Expected token SEMICOLON, found END", ParserError::UNEXPECTED_TOKEN, 1, 7});
 }
 
 TEST_CASE("Builtin identifiers") {

@@ -11,6 +11,8 @@ class BinaryExpression : public InfixExpression<BinaryExpression> {
 
   public:
     using InfixExpression::InfixExpression;
+    MAKE_AST_COPY_MOVE(BinaryExpression)
+
     using InfixExpression::parse;
 };
 

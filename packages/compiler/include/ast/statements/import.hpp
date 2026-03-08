@@ -24,6 +24,8 @@ class ImportStatement : public StmtBase<ImportStatement> {
                              Optional<Box<IdentifierExpression>>    alias) noexcept;
     ~ImportStatement() override;
 
+    MAKE_AST_COPY_MOVE(ImportStatement)
+
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser) -> Expected<Box<Statement>, ParserDiagnostic>;
 

@@ -11,6 +11,8 @@ class RangeExpression : public InfixExpression<RangeExpression> {
 
   public:
     using InfixExpression::InfixExpression;
+    MAKE_AST_COPY_MOVE(RangeExpression)
+
     using InfixExpression::parse;
 };
 

@@ -192,4 +192,11 @@ TEST_CASE("Constant requirements") {
                    "a: int;");
 }
 
+TEST_CASE("Non-terminated decls") {
+    helpers::test_fail(
+        "var a: int = 2",
+        ParserDiagnostic{
+            "Expected token SEMICOLON, found END", ParserError::UNEXPECTED_TOKEN, 1, 15});
+}
+
 } // namespace conch::tests

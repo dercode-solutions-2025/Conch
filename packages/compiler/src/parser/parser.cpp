@@ -174,7 +174,6 @@ constexpr auto PREFIX_FNS = []() {
         {TokenType::STAR, ast::DereferenceExpression::parse},
         {TokenType::AND, ast::ReferenceExpression::parse},
         {TokenType::AND_MUT, ast::ReferenceExpression::parse},
-        {TokenType::DOT, ast::ImplicitAccessExpression::parse},
         {TokenType::TRUE, ast::BoolExpression::parse},
         {TokenType::FALSE, ast::BoolExpression::parse},
         {TokenType::STRING, ast::StringExpression::parse},

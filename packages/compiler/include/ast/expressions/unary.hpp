@@ -10,8 +10,10 @@ class UnaryExpression : public PrefixExpression<UnaryExpression> {
     static constexpr auto KIND = NodeKind::UNARY_EXPRESSION;
 
   public:
-    using PrefixExpression::parse;
     using PrefixExpression::PrefixExpression;
+    MAKE_AST_COPY_MOVE(UnaryExpression)
+
+    using PrefixExpression::parse;
 };
 
 class ReferenceExpression : public PrefixExpression<ReferenceExpression> {
@@ -19,8 +21,10 @@ class ReferenceExpression : public PrefixExpression<ReferenceExpression> {
     static constexpr auto KIND = NodeKind::REFERENCE_EXPRESSION;
 
   public:
-    using PrefixExpression::parse;
     using PrefixExpression::PrefixExpression;
+    MAKE_AST_COPY_MOVE(ReferenceExpression)
+
+    using PrefixExpression::parse;
 };
 
 class DereferenceExpression : public PrefixExpression<DereferenceExpression> {
@@ -28,8 +32,10 @@ class DereferenceExpression : public PrefixExpression<DereferenceExpression> {
     static constexpr auto KIND = NodeKind::DEREFERENCE_EXPRESSION;
 
   public:
-    using PrefixExpression::parse;
     using PrefixExpression::PrefixExpression;
+    MAKE_AST_COPY_MOVE(DereferenceExpression)
+
+    using PrefixExpression::parse;
 };
 
 } // namespace conch::ast

@@ -11,6 +11,8 @@ class DotExpression : public InfixExpression<DotExpression> {
 
   public:
     using InfixExpression::InfixExpression;
+    MAKE_AST_COPY_MOVE(DotExpression)
+
     using InfixExpression::parse;
 };
 

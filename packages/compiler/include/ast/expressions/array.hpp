@@ -19,6 +19,8 @@ class ArrayExpression : public ExprBase<ArrayExpression> {
                              std::vector<Box<Expression>> items) noexcept
         : ExprBase{start_token}, size_{std::move(size)}, items_{std::move(items)} {}
 
+    MAKE_AST_COPY_MOVE(ArrayExpression)
+
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser) -> Expected<Box<Expression>, ParserDiagnostic>;
 

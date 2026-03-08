@@ -66,4 +66,9 @@ template <ast::LeafNode N> auto test_stmt(std::string_view input, const N& expec
     REQUIRE(expected == actual_stmt);
 }
 
+template <ast::LeafNode N> auto test_expr_stmt(std::string_view input, N&& expected) -> void {
+    test_stmt(input,
+              ast::ExpressionStatement{expected.get_token(), make_box<N>(std::move(expected))});
+}
+
 } // namespace conch::tests::helpers

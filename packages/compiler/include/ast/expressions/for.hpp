@@ -21,10 +21,7 @@ class ForLoopCapture {
         explicit Valued(TypeModifier modifier, Box<IdentifierExpression> name) noexcept;
         ~Valued();
 
-        Valued(const Valued&)                        = delete;
-        auto operator=(const Valued&) -> Valued&     = delete;
-        Valued(Valued&&) noexcept                    = default;
-        auto operator=(Valued&&) noexcept -> Valued& = default;
+        MAKE_AST_COPY_MOVE(Valued)
 
         [[nodiscard]] auto get_modifier() const noexcept -> const TypeModifier& {
             return modifier_;
@@ -46,10 +43,7 @@ class ForLoopCapture {
     explicit ForLoopCapture(Valued valued) noexcept;
     ~ForLoopCapture();
 
-    ForLoopCapture(const ForLoopCapture&)                        = delete;
-    auto operator=(const ForLoopCapture&) -> ForLoopCapture&     = delete;
-    ForLoopCapture(ForLoopCapture&&) noexcept                    = default;
-    auto operator=(ForLoopCapture&&) noexcept -> ForLoopCapture& = default;
+    MAKE_AST_COPY_MOVE(ForLoopCapture)
 
     [[nodiscard]] auto is_discarded() const noexcept -> bool {
         return std::holds_alternative<std::monostate>(underlying_);
@@ -90,6 +84,8 @@ class ForLoopExpression : public ExprBase<ForLoopExpression> {
                                Box<BlockStatement>                   block,
                                Optional<Box<Statement>>              non_break) noexcept;
     ~ForLoopExpression() override;
+
+    MAKE_AST_COPY_MOVE(ForLoopExpression)
 
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser) -> Expected<Box<Expression>, ParserDiagnostic>;

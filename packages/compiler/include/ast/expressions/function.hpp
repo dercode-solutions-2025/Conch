@@ -18,10 +18,7 @@ class FunctionParameter {
     explicit FunctionParameter(Box<IdentifierExpression> name, Box<TypeExpression> type) noexcept;
     ~FunctionParameter();
 
-    FunctionParameter(const FunctionParameter&)                        = delete;
-    auto operator=(const FunctionParameter&) -> FunctionParameter&     = delete;
-    FunctionParameter(FunctionParameter&&) noexcept                    = default;
-    auto operator=(FunctionParameter&&) noexcept -> FunctionParameter& = default;
+    MAKE_AST_COPY_MOVE(FunctionParameter)
 
     [[nodiscard]] auto get_name() const noexcept -> const IdentifierExpression& { return *name_; }
     [[nodiscard]] auto get_type() const noexcept -> const TypeExpression& { return *type_; }
@@ -39,10 +36,7 @@ class SelfParameter {
                            Box<IdentifierExpression> name) noexcept;
     ~SelfParameter();
 
-    SelfParameter(const SelfParameter&)                        = delete;
-    auto operator=(const SelfParameter&) -> SelfParameter&     = delete;
-    SelfParameter(SelfParameter&&) noexcept                    = default;
-    auto operator=(SelfParameter&&) noexcept -> SelfParameter& = default;
+    MAKE_AST_COPY_MOVE(SelfParameter)
 
     [[nodiscard]] auto get_name() const noexcept -> const IdentifierExpression& { return *name_; }
     [[nodiscard]] auto has_modifier() const noexcept -> bool { return modifier_.has_value(); }
@@ -67,6 +61,8 @@ class FunctionExpression : public ExprBase<FunctionExpression> {
                                 Box<TypeExpression>            return_type,
                                 Optional<Box<BlockStatement>>  body) noexcept;
     ~FunctionExpression() override;
+
+    MAKE_AST_COPY_MOVE(FunctionExpression)
 
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser) -> Expected<Box<Expression>, ParserDiagnostic>;

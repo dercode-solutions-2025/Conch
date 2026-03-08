@@ -35,10 +35,14 @@ TEST_CASE("Expression returns") {
 }
 
 TEST_CASE("Incorrectly terminated jumps") {
-    helpers::test_fail(
-        "return",
-        ParserDiagnostic{
-            "Expected token SEMICOLON, found END", ParserError::UNEXPECTED_TOKEN, 1, 7});
+    const auto inputs = std::to_array<std::string_view>({"return", "continue", "break"});
+    for (const auto& input : inputs) {
+        helpers::test_fail(input,
+                           ParserDiagnostic{"Expected token SEMICOLON, found END",
+                                            ParserError::UNEXPECTED_TOKEN,
+                                            1,
+                                            input.size() + 1});
+    }
 
     helpers::test_fail("return return",
                        ParserDiagnostic{"No prefix parse function for RETURN(return) found",
@@ -52,6 +56,7 @@ TEST_CASE("Illegal control flow") {
         "continue 4;",
         ParserDiagnostic{
             "Expected token SEMICOLON, found INT_10", ParserError::UNEXPECTED_TOKEN, 1, 10});
+
     helpers::test_fail(
         "break 4;",
         ParserDiagnostic{

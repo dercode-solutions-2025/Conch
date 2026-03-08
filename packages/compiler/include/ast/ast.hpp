@@ -16,7 +16,6 @@
 #include "ast/expressions/group.hpp"
 #include "ast/expressions/identifier.hpp"
 #include "ast/expressions/if.hpp"
-#include "ast/expressions/implicit_access.hpp"
 #include "ast/expressions/index.hpp"
 #include "ast/expressions/infinite_loop.hpp"
 #include "ast/expressions/infix.hpp"

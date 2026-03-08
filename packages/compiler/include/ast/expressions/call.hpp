@@ -21,6 +21,8 @@ class CallExpression : public ExprBase<CallExpression> {
                             std::vector<Box<Expression>> arguments) noexcept
         : ExprBase{start_token}, function_{std::move(function)}, arguments_{std::move(arguments)} {}
 
+    MAKE_AST_COPY_MOVE(CallExpression)
+
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser, Box<Expression> function)
         -> Expected<Box<Expression>, ParserDiagnostic>;

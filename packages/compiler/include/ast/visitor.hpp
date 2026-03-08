@@ -19,7 +19,6 @@ namespace conch::ast {
     X(MatchExpression)               \
     X(ReferenceExpression)           \
     X(DereferenceExpression)         \
-    X(ImplicitAccessExpression)      \
     X(UnaryExpression)               \
     X(StringExpression)              \
     X(SignedIntegerExpression)       \

@@ -23,10 +23,7 @@ class ExplicitArrayType {
     explicit ExplicitArrayType(Box<Expression> dimension, Box<ExplicitType> inner_type) noexcept;
     ~ExplicitArrayType();
 
-    ExplicitArrayType(const ExplicitArrayType&)                        = delete;
-    auto operator=(const ExplicitArrayType&) -> ExplicitArrayType&     = delete;
-    ExplicitArrayType(ExplicitArrayType&&) noexcept                    = default;
-    auto operator=(ExplicitArrayType&&) noexcept -> ExplicitArrayType& = default;
+    MAKE_AST_COPY_MOVE(ExplicitArrayType)
 
     [[nodiscard]] auto get_dimensions() const noexcept -> const Expression& { return *dimension_; }
     [[nodiscard]] auto get_inner_type() const noexcept -> const ExplicitType& {
@@ -54,10 +51,7 @@ class ExplicitType {
     explicit ExplicitType(TypeModifier modifier, ExplicitTypeVariant type) noexcept;
     ~ExplicitType();
 
-    ExplicitType(const ExplicitType&)                        = delete;
-    auto operator=(const ExplicitType&) -> ExplicitType&     = delete;
-    ExplicitType(ExplicitType&&) noexcept                    = default;
-    auto operator=(ExplicitType&&) noexcept -> ExplicitType& = default;
+    MAKE_AST_COPY_MOVE(ExplicitType)
 
     [[nodiscard]] static auto parse(Parser& parser) -> Expected<ExplicitType, ParserDiagnostic>;
 
@@ -90,6 +84,8 @@ class TypeExpression : public ExprBase<TypeExpression> {
   public:
     explicit TypeExpression(const Token& start_token, Optional<ExplicitType> exp) noexcept;
     ~TypeExpression() override;
+
+    MAKE_AST_COPY_MOVE(TypeExpression)
 
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser)

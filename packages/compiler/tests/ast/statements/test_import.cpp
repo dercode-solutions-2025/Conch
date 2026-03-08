@@ -57,4 +57,11 @@ TEST_CASE("Incorrect user imports ") {
             "Expected token IDENT, found INT_10", ParserError::UNEXPECTED_TOKEN, 1, 28});
 }
 
+TEST_CASE("Non-terminated imports") {
+    helpers::test_fail(
+        "import std",
+        ParserDiagnostic{
+            "Expected token SEMICOLON, found END", ParserError::UNEXPECTED_TOKEN, 1, 11});
+}
+
 } // namespace conch::tests
