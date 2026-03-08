@@ -2,7 +2,6 @@
 
 #include "ast/expressions/function.hpp"
 #include "ast/expressions/identifier.hpp"
-
 #include "ast/visitor.hpp"
 
 namespace conch::ast {
@@ -17,25 +16,25 @@ ExplicitType::ExplicitType(TypeModifier modifier, ExplicitTypeVariant type) noex
 ExplicitType::~ExplicitType() = default;
 
 [[nodiscard]] auto ExplicitType::parse(Parser& parser) -> Expected<ExplicitType, ParserDiagnostic> {
-    const auto start_token = parser.current_token();
-
     // Always check for a modifier and advance past it if present
-    const auto modifier = TypeModifier::from_token(start_token);
+    const auto modifier = TypeModifier::from_token(parser.peek_token());
     if (!modifier.is_value()) { parser.advance(); }
 
     // The array dimension of a type are only present conditionally
     if (parser.peek_token_is(TokenType::LBRACKET)) {
-        parser.advance();
+        parser.advance(2);
         auto dimension = TRY(parser.parse_expression());
         TRY(parser.expect_peek(TokenType::RBRACKET));
 
         // Arrays are recursively defined
+        auto inner = TRY(ExplicitType::parse(parser));
         return ExplicitType{
             std::move(modifier),
-            ExplicitArrayType{std::move(dimension), make_box<ExplicitType>(TRY(parse(parser)))}};
-    } else if (!TypeModifier::from_token(parser.current_token()).is_value()) {
+            ExplicitArrayType{std::move(dimension), make_box<ExplicitType>(std::move(inner))}};
+    } else if (!TypeModifier::from_token(parser.peek_token()).is_value()) {
         // Don't advance since the parser does it implicitly here (costs two from_token calls)
-        return ExplicitType{std::move(modifier), make_box<ExplicitType>(TRY(parse(parser)))};
+        auto inner = TRY(ExplicitType::parse(parser));
+        return ExplicitType{std::move(modifier), make_box<ExplicitType>(std::move(inner))};
     }
 
     // Otherwise the type has to be a 'simple' function or ident

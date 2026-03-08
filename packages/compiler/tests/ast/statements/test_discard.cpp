@@ -8,7 +8,6 @@
 #include "ast/statements/discard.hpp"
 
 #include "lexer/keywords.hpp"
-#include "lexer/token.hpp"
 
 namespace conch::tests {
 

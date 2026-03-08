@@ -5,8 +5,6 @@
 #include "ast/expressions/identifier.hpp"
 #include "ast/expressions/scope_resolve.hpp"
 
-#include "lexer/token.hpp"
-
 namespace conch::tests {
 
 TEST_CASE("Basic scope") {

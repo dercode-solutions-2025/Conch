@@ -8,7 +8,6 @@
 #include "ast/statements/jump.hpp"
 
 #include "lexer/keywords.hpp"
-#include "lexer/token.hpp"
 
 namespace conch::tests {
 
