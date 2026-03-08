@@ -8,7 +8,6 @@ auto CallExpression::accept(Visitor& v) const -> void { v.visit(*this); }
 auto CallExpression::parse(Parser& parser, Box<Expression> function)
     -> Expected<Box<Expression>, ParserDiagnostic> {
     const auto start_token = parser.current_token();
-    TRY(parser.expect_peek(TokenType::LPAREN));
 
     std::vector<Box<Expression>> arguments;
     while (!parser.peek_token_is(TokenType::RPAREN)) {
@@ -17,6 +16,7 @@ auto CallExpression::parse(Parser& parser, Box<Expression> function)
 
         if (!parser.peek_token_is(TokenType::RPAREN)) { TRY(parser.expect_peek(TokenType::COMMA)); }
     }
+    TRY(parser.expect_peek(TokenType::RPAREN));
 
     return make_box<CallExpression>(start_token, std::move(function), std::move(arguments));
 }

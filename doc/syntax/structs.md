@@ -13,7 +13,6 @@
         - This parameter _must_ be the first parameter of the function's parameter list
         - This parameter is conventionally named `self` but is allowed to assume any non-reserved keyword
         - This parameter has the underlying type of the directly enclosing struct
-    - Static functions that wish to mutate state must be marked as such (`mut`)
     - Functions are considered to be top-level within the struct and must be `const`
     - Members can be declared in any order, the compiler is order independent and is free to reorder to optimize
 - Struct types are internal to the compiler and should never be written by hand (compile error)
@@ -30,19 +29,15 @@ const Foo := struct {           // Standard declaration with type inference
     private var boo := 4u;      // Members are public by default
     static const foo := 3.4;    // Static variables are struct globals and are not instance specific
 
-    const worker_one := fn(&self): void {                // Functions have an explicit 'self' parameter
-        // ...                                      // Member functions must be const
+    const worker_one := fn(&self): void {           // Functions have an explicit 'self' parameter
+        // ...
     };
 
-    const worker_two := fn(&mut self): void {            // The self parameter can be marked 'mut' to mutate state
+    const worker_two := fn(&mut self): void {       // The self parameter can be marked '&mut' to mutate state
         // ...
     };
 
     static const worker_three = fn(): void {        // Functions marked static cannot have a 'self' parameter
-        // ...
-    };
-
-    static const worker_three = mut fn(): void {    // Mutable static functions can mutate variable static members
         // ...
     };
 

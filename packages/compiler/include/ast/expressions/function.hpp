@@ -55,7 +55,6 @@ class FunctionExpression : public ExprBase<FunctionExpression> {
 
   public:
     explicit FunctionExpression(const Token&                   start_token,
-                                bool                           mut,
                                 Optional<SelfParameter>        self,
                                 std::vector<FunctionParameter> parameters,
                                 Box<TypeExpression>            return_type,
@@ -67,7 +66,6 @@ class FunctionExpression : public ExprBase<FunctionExpression> {
     auto                      accept(Visitor& v) const -> void override;
     [[nodiscard]] static auto parse(Parser& parser) -> Expected<Box<Expression>, ParserDiagnostic>;
 
-    [[nodiscard]] auto is_mutable() const noexcept -> bool { return mutable_; }
     [[nodiscard]] auto get_parameters() const noexcept -> std::span<const FunctionParameter> {
         return parameters_;
     }
@@ -85,7 +83,6 @@ class FunctionExpression : public ExprBase<FunctionExpression> {
     auto is_equal(const Node& other) const noexcept -> bool override;
 
   private:
-    bool                           mutable_;
     Optional<SelfParameter>        self_;
     std::vector<FunctionParameter> parameters_;
     Box<TypeExpression>            return_type_;

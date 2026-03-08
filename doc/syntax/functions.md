@@ -1,5 +1,4 @@
 # Functions
-## Top-Level Function Declarations
 - Functions are defined using the standard declaration syntax
 - Function parameters are immutable by default
 ```conch
@@ -43,34 +42,13 @@ _ = bar(b);         // Allowed, passed by value
 _ = baz(&mut b);    // Illegal, cannot mutate const
 ```
 
-## Local Function Declarations
-- Local functions (closures) are defined using the standard declaration syntax
-- Local functions capture variables implicitly, only using what they need
-- A local function must be marked `mut` to modify external variables
-```conch
-const foo := fn(a: int, b: uint): ulong {
-    var something := 2;
-    // Functions can be used as types, they're first class citizens!
-    var bar: fn(c: ulong): void = fn(c: ulong): void {
-        // Local functions implicitly capture necessary variables from the outer scope
-        const d := (1 + b) / a; 
-               
-        // Compile Error - Illegal as enclosing function is not marked 'mut'
-        // something += 2;
-        // ...
-    };
-
-    // Local functions can be marked var and can be reassigned to a function of the same type
-    bar = ...;
-};
-```
-
 ## Semantics
 - There is no function overloading
     - This includes operators. There is no operator overloading
-- Top-level functions cannot be marked variable and must be `const`
+- Function declarations cannot be marked variable and must be `const`
 - Functions can have the `noreturn` return 'type' which signifies that the compiler should not expect a `return` construct in the function body
     - Violating this assumption is a compile time error
+- There are no closures
 
 ## Builtin Functions
 - Builtin functions are prefixed with the `@` symbol and are always camelCase

@@ -158,7 +158,6 @@ enum class TokenType : u8 {
     PACKED,
     VOLATILE,
     STATIC,
-    MUT,
     NORETURN,
     NULLPTR,
 
