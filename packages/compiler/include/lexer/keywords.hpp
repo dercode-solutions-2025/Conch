@@ -80,6 +80,7 @@ constexpr Keyword CEIL{"@ceil", TokenType::CEIL};
 constexpr Keyword FLOOR{"@floor", TokenType::FLOOR};
 constexpr Keyword EXP{"@exp", TokenType::EXP};
 constexpr Keyword EXP_2{"@exp2", TokenType::EXP_2};
+constexpr Keyword POW{"@pow", TokenType::POW};
 constexpr Keyword CLZ{"@clz", TokenType::CLZ};
 constexpr Keyword CTZ{"@ctz", TokenType::CTZ};
 
@@ -132,7 +133,7 @@ constexpr auto ALL_BUILTINS = []() {
         builtins::SIN,    builtins::COS,    builtins::TAN,     builtins::SQRT,    builtins::LOG,
         builtins::LOG_10, builtins::LOG_2,  builtins::MIN,     builtins::MAX,     builtins::MOD,
         builtins::DIVMOD, builtins::TRUNC,  builtins::CAST,    builtins::CEIL,    builtins::FLOOR,
-        builtins::EXP,    builtins::EXP_2,  builtins::CLZ,     builtins::CTZ,
+        builtins::POW,    builtins::EXP,    builtins::EXP_2,   builtins::CLZ,     builtins::CTZ,
     };
 
     std::ranges::sort(all_builtins, {}, &Keyword::first);

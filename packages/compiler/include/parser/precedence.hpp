@@ -35,7 +35,6 @@ constexpr auto ALL_BINDINGS = []() {
         {TokenType::STAR, Precedence::MUL_DIV},
         {TokenType::SLASH, Precedence::MUL_DIV},
         {TokenType::PERCENT, Precedence::MUL_DIV},
-        {TokenType::STAR_STAR, Precedence::EXPONENT},
         {TokenType::BOOLEAN_AND, Precedence::BOOL_AND_OR},
         {TokenType::BOOLEAN_OR, Precedence::BOOL_AND_OR},
         {TokenType::EQ, Precedence::BOOL_EQUIV},

@@ -60,7 +60,6 @@ enum class TokenType : u8 {
     PLUS,
     MINUS,
     STAR,
-    STAR_STAR,
     SLASH,
     PERCENT,
     BANG,
@@ -183,6 +182,7 @@ enum class TokenType : u8 {
     FLOOR,
     EXP,
     EXP_2,
+    POW,
     CLZ, // Count leading zeroes
     CTZ, // Count trailing zeroes
 

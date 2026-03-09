@@ -72,11 +72,24 @@ TEST_CASE("Assignment expressions") {
 
 TEST_CASE("Binary expressions") {
     const auto ops = std::to_array<Operator>({
-        operators::PLUS,        operators::MINUS,      operators::STAR,   operators::SLASH,
-        operators::PERCENT,     operators::STAR_STAR,  operators::LT,     operators::LT_EQ,
-        operators::GT,          operators::GT_EQ,      operators::EQ,     operators::NEQ,
-        operators::BOOLEAN_AND, operators::BOOLEAN_OR, operators::BW_AND, operators::BW_OR,
-        operators::XOR,         operators::SHR,        operators::SHL,
+        operators::PLUS,
+        operators::MINUS,
+        operators::STAR,
+        operators::SLASH,
+        operators::PERCENT,
+        operators::LT,
+        operators::LT_EQ,
+        operators::GT,
+        operators::GT_EQ,
+        operators::EQ,
+        operators::NEQ,
+        operators::BOOLEAN_AND,
+        operators::BOOLEAN_OR,
+        operators::BW_AND,
+        operators::BW_OR,
+        operators::XOR,
+        operators::SHR,
+        operators::SHL,
     });
     helpers::test_infix_op_list<ast::BinaryExpression>(ops);
 }
@@ -137,15 +150,7 @@ TEST_CASE("Numerical precedence") {
                                   ast::IdentifierExpression{c});
     }
 
-    SECTION("Grouping and exponent") {
-        helpers::test_binary_expr("a ** b / c;",
-                                  ast::BinaryExpression{a,
-                                                        make_box<ast::IdentifierExpression>(a),
-                                                        TokenType::STAR_STAR,
-                                                        make_box<ast::IdentifierExpression>(b)},
-                                  TokenType::SLASH,
-                                  ast::IdentifierExpression{c});
-
+    SECTION("Grouping") {
         helpers::test_binary_expr("(a + b) * c;",
                                   Token{TokenType::LPAREN, "("},
                                   ast::BinaryExpression{a,

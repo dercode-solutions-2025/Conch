@@ -265,7 +265,6 @@ constexpr auto INFIX_FNS = []() {
         {TokenType::STAR, ast::BinaryExpression::parse},
         {TokenType::SLASH, ast::BinaryExpression::parse},
         {TokenType::PERCENT, ast::BinaryExpression::parse},
-        {TokenType::STAR_STAR, ast::BinaryExpression::parse},
         {TokenType::LT, ast::BinaryExpression::parse},
         {TokenType::LT_EQ, ast::BinaryExpression::parse},
         {TokenType::GT, ast::BinaryExpression::parse},

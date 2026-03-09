@@ -23,7 +23,6 @@ constexpr Operator MINUS{"-", TokenType::MINUS};
 constexpr Operator MINUS_ASSIGN{"-=", TokenType::MINUS_ASSIGN};
 constexpr Operator STAR{"*", TokenType::STAR};
 constexpr Operator STAR_ASSIGN{"*=", TokenType::STAR_ASSIGN};
-constexpr Operator STAR_STAR{"**", TokenType::STAR_STAR};
 constexpr Operator SLASH{"/", TokenType::SLASH};
 constexpr Operator SLASH_ASSIGN{"/=", TokenType::SLASH_ASSIGN};
 constexpr Operator PERCENT{"%", TokenType::PERCENT};
@@ -66,49 +65,27 @@ constexpr Operator MULTILINE_STRING{"\\\\", TokenType::MULTILINE_STRING};
 
 constexpr auto ALL_OPERATORS = []() {
     auto all_operators = std::array{
-        operators::ASSIGN,
-        operators::WALRUS,
-        operators::PLUS,
-        operators::PLUS_ASSIGN,
-        operators::MINUS,
-        operators::MINUS_ASSIGN,
-        operators::STAR,
-        operators::STAR_ASSIGN,
-        operators::STAR_STAR,
-        operators::SLASH,
-        operators::SLASH_ASSIGN,
-        operators::PERCENT,
-        operators::PERCENT_ASSIGN,
-        operators::BANG,
-        operators::AND_MUT,
-        operators::STAR_MUT,
-        operators::BW_AND,
-        operators::BW_AND_ASSIGN,
-        operators::BW_OR,
-        operators::BW_OR_ASSIGN,
-        operators::SHL,
-        operators::SHL_ASSIGN,
-        operators::SHR,
-        operators::SHR_ASSIGN,
-        operators::NOT,
-        operators::NOT_ASSIGN,
-        operators::XOR,
-        operators::XOR_ASSIGN,
-        operators::BOOLEAN_AND,
-        operators::BOOLEAN_OR,
-        operators::LT,
-        operators::LT_EQ,
-        operators::GT,
-        operators::GT_EQ,
-        operators::EQ,
-        operators::NEQ,
-        operators::COLON_COLON,
-        operators::DOT,
-        operators::DOT_DOT,
-        operators::DOT_DOT_EQ,
-        operators::FAT_ARROW,
-        operators::COMMENT,
-        operators::MULTILINE_STRING,
+        operators::ASSIGN,        operators::WALRUS,
+        operators::PLUS,          operators::PLUS_ASSIGN,
+        operators::MINUS,         operators::MINUS_ASSIGN,
+        operators::STAR,          operators::STAR_ASSIGN,
+        operators::SLASH,         operators::SLASH_ASSIGN,
+        operators::PERCENT,       operators::PERCENT_ASSIGN,
+        operators::BANG,          operators::AND_MUT,
+        operators::STAR_MUT,      operators::BW_AND,
+        operators::BW_AND_ASSIGN, operators::BW_OR,
+        operators::BW_OR_ASSIGN,  operators::SHL,
+        operators::SHL_ASSIGN,    operators::SHR,
+        operators::SHR_ASSIGN,    operators::NOT,
+        operators::NOT_ASSIGN,    operators::XOR,
+        operators::XOR_ASSIGN,    operators::BOOLEAN_AND,
+        operators::BOOLEAN_OR,    operators::LT,
+        operators::LT_EQ,         operators::GT,
+        operators::GT_EQ,         operators::EQ,
+        operators::NEQ,           operators::COLON_COLON,
+        operators::DOT,           operators::DOT_DOT,
+        operators::DOT_DOT_EQ,    operators::FAT_ARROW,
+        operators::COMMENT,       operators::MULTILINE_STRING,
     };
 
     std::ranges::sort(all_operators, {}, &Operator::first);
