@@ -27,7 +27,7 @@ template <typename Derived> class PrefixExpression : public ExprBase<Derived> {
         return make_box<Derived>(prefix_token, std::move(operand));
     }
 
-    auto               get_op() const noexcept -> TokenType { return this->start_token_.type; }
+    [[nodiscard]] auto get_op() const noexcept -> TokenType { return this->start_token_.type; }
     [[nodiscard]] auto get_rhs() const noexcept -> const Expression& { return *rhs_; }
 
   protected:

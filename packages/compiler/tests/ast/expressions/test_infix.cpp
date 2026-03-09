@@ -342,7 +342,7 @@ TEST_CASE("Non-terminated infix") {
                                         ParserError::MISSING_PREFIX_PARSER,
                                         1,
                                         6});
-    helpers::test_fail("a and", ParserDiagnostic{ParserError::END_OF_TOKEN_STREAM, 1, 6});
+    helpers::test_fail("a and", ParserDiagnostic{ParserError::INFIX_MISSING_RHS, 1, 3});
 }
 
 } // namespace conch::tests

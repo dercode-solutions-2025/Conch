@@ -134,11 +134,7 @@ auto Parser::parse_expression(Precedence precedence)
     while (!peek_token_is(TokenType::SEMICOLON) && precedence < poll_peek_precedence()) {
         const auto& infix = poll_infix_fn(peek_token_.type);
         if (!infix) { break; }
-
-        if (advance().type == TokenType::END) {
-            return make_parser_unexpected(ParserError::INFIX_MISSING_RHS, current_token_);
-        }
-
+        advance();
         lhs_expression = TRY((*infix)(*this, std::move(lhs_expression)));
     }
 
