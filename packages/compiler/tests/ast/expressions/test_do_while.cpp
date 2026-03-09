@@ -23,14 +23,14 @@ TEST_CASE("Missing do-while condition") {
                        ParserDiagnostic{ParserError::WHILE_MISSING_CONDITION, 1, 16});
 }
 
-TEST_CASE("Unclosed do body") {
+TEST_CASE("Unclosed do-while body") {
     helpers::test_fail(
         "do { while (true);",
         ParserDiagnostic{
             "Expected token LBRACE, found SEMICOLON", ParserError::UNEXPECTED_TOKEN, 1, 18});
 }
 
-TEST_CASE("Unclosed condition") {
+TEST_CASE("Unclosed do-while condition") {
     helpers::test_fail(
         "do {a; } while (true;",
         ParserDiagnostic{

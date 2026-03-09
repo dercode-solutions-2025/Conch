@@ -40,12 +40,12 @@ auto WhileLoopExpression::parse(Parser& parser) -> Expected<Box<Expression>, Par
         // Consume again to look at the actual expr start
         parser.advance();
         if (parser.current_token_is(TokenType::RPAREN)) {
-            return make_parser_unexpected(ParserError::IMPROPER_WHILE_CONTINUATION,
+            return make_parser_unexpected(ParserError::EMPTY_WHILE_CONTINUATION,
                                           continuation_start);
         }
 
         continuation.emplace(TRY(parser.parse_expression()));
-        TRY(parser.expect_peek(TokenType::RBRACE));
+        TRY(parser.expect_peek(TokenType::RPAREN));
     }
 
     // Loops must have a well formed block and may have an alternate in non-break cases
@@ -70,7 +70,8 @@ auto WhileLoopExpression::is_equal(const Node& other) const noexcept -> bool {
     const auto& casted = as<WhileLoopExpression>(other);
     return *condition_ == *casted.condition_ &&
            optional::unsafe_eq<Expression>(continuation_, casted.continuation_) &&
-           block_ == casted.block_ && optional::unsafe_eq<Statement>(non_break_, casted.non_break_);
+           *block_ == *casted.block_ &&
+           optional::unsafe_eq<Statement>(non_break_, casted.non_break_);
 }
 
 } // namespace conch::ast

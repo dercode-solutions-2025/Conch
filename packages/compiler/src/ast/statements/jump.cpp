@@ -16,7 +16,9 @@ auto JumpStatement::parse(Parser& parser) -> Expected<Box<Statement>, ParserDiag
         value = TRY(parser.parse_expression());
     }
 
-    TRY(parser.expect_peek(TokenType::SEMICOLON));
+    if (!parser.current_token_is(TokenType::SEMICOLON)) {
+        TRY(parser.expect_peek(TokenType::SEMICOLON));
+    }
     return make_box<JumpStatement>(start_token, std::move(value));
 }
 

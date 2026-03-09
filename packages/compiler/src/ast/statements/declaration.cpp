@@ -67,7 +67,9 @@ auto DeclStatement::parse(Parser& parser) -> Expected<Box<Statement>, ParserDiag
         }
     }
 
-    TRY(parser.expect_peek(TokenType::SEMICOLON));
+    if (!parser.current_token_is(TokenType::SEMICOLON)) {
+        TRY(parser.expect_peek(TokenType::SEMICOLON));
+    }
     return make_box<DeclStatement>(start_token,
                                    std::move(decl_name),
                                    std::move(decl_type_expr),

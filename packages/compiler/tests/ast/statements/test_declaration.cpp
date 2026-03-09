@@ -121,12 +121,12 @@ TEST_CASE("Correct declaration modifiers") {
 }
 
 static auto test_decl_fail(std::initializer_list<Keyword> modifiers,
-                           ParserDiagnostic               expected_error,
+                           ParserDiagnostic&&             expected_error,
                            std::string_view               init = "a := 2;") -> void {
     std::stringstream ss;
     for (const auto& keyword : modifiers) { ss << keyword.first << " "; }
     ss << init;
-    helpers::test_fail(ss.view(), expected_error);
+    helpers::test_fail(ss.view(), std::move(expected_error));
 }
 
 TEST_CASE("Mutability restrictions") {
