@@ -15,18 +15,18 @@ class BlockStatement;
 
 class FunctionParameter {
   public:
-    explicit FunctionParameter(Box<IdentifierExpression> name, ExplicitType&& type) noexcept;
+    explicit FunctionParameter(Box<IdentifierExpression> ident, ExplicitType&& type) noexcept;
     ~FunctionParameter();
 
     MAKE_AST_COPY_MOVE(FunctionParameter)
 
-    MAKE_AST_GETTER(name, const IdentifierExpression&, *)
+    MAKE_AST_GETTER(ident, const IdentifierExpression&, *)
     MAKE_AST_GETTER(type, const ExplicitType&, )
 
     MAKE_AST_DEPENDENT_EQ(FunctionParameter)
 
   private:
-    Box<IdentifierExpression> name_;
+    Box<IdentifierExpression> ident_;
     ExplicitType              type_;
 };
 
@@ -38,13 +38,13 @@ class SelfParameter {
     MAKE_AST_COPY_MOVE(SelfParameter)
 
     MAKE_AST_GETTER(modifier, const TypeModifier&, )
-    MAKE_AST_GETTER(name, const IdentifierExpression&, *)
+    MAKE_AST_GETTER(ident, const IdentifierExpression&, *)
 
     MAKE_AST_DEPENDENT_EQ(SelfParameter)
 
   private:
     TypeModifier              modifier_;
-    Box<IdentifierExpression> name_;
+    Box<IdentifierExpression> ident_;
 };
 
 class FunctionExpression : public ExprBase<FunctionExpression> {

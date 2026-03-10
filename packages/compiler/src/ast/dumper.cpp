@@ -30,9 +30,9 @@ namespace conch::ast {
         node.get_rhs().accept(*this);                                                \
     }
 
-#define MAKE_LEAF_DUMP(NodeType, getter)                   \
-    auto ASTDumper::visit(const NodeType& node) -> void {  \
-        fmt::println(out_, #NodeType ": {}", node.getter); \
+#define MAKE_LEAF_DUMP(NodeType)                          \
+    auto ASTDumper::visit(const NodeType& node) -> void { \
+        fmt::println(out_, #NodeType ": {}", node);       \
     }
 
 auto ASTDumper::visit(const ArrayExpression& node) -> void {
@@ -107,12 +107,12 @@ auto ASTDumper::visit(const EnumExpression& node) -> void {
 
     {
         const Indent::Guard g{indent_, true};
-        fmt::println(out_, "{}Variants:", indent_.current_branch());
+        fmt::println(out_, "{}Enumerations:", indent_.current_branch());
         dump_container(node.get_enumerations(), [this](const Enumeration& enumeration) {
             {
                 fmt::print(out_, "{}Name: ", indent_.current_branch());
                 const Indent::Guard g_name{indent_, !enumeration.has_default_value()};
-                enumeration.get_name().accept(*this);
+                enumeration.get_ident().accept(*this);
             }
 
             if (enumeration.has_default_value()) {
@@ -143,7 +143,7 @@ auto ASTDumper::visit(const ForLoopExpression& node) -> void {
                 fmt::println(out_,
                              "{}{} (modifier: {})",
                              indent_.current_branch(),
-                             valued.get_name(),
+                             valued.get_ident(),
                              valued.get_modifier());
             }
         });
@@ -170,7 +170,7 @@ auto ASTDumper::visit(const FunctionExpression& node) -> void {
         fmt::println(out_,
                      "{}Self: {} (modifier: {})",
                      indent_.current_branch(),
-                     self.get_name(),
+                     self.get_ident(),
                      self.get_modifier());
     }
 
@@ -182,7 +182,7 @@ auto ASTDumper::visit(const FunctionExpression& node) -> void {
             {
                 const Indent::Guard g_name{indent_, false};
                 fmt::print(out_, "{}Name: ", indent_.current_branch());
-                param.get_name().accept(*this);
+                param.get_ident().accept(*this);
             }
             {
                 const Indent::Guard g_type{indent_, true};
@@ -205,7 +205,7 @@ auto ASTDumper::visit(const FunctionExpression& node) -> void {
     }
 }
 
-MAKE_LEAF_DUMP(IdentifierExpression, get_name())
+MAKE_LEAF_DUMP(IdentifierExpression)
 
 auto ASTDumper::visit(const IfExpression& node) -> void {
     fmt::println(out_, "IfExpression");
@@ -289,16 +289,16 @@ MAKE_PREFIX_DUMP(ReferenceExpression)
 MAKE_PREFIX_DUMP(DereferenceExpression)
 MAKE_PREFIX_DUMP(UnaryExpression)
 
-MAKE_LEAF_DUMP(StringExpression, get_value())
-MAKE_LEAF_DUMP(SignedIntegerExpression, get_value())
-MAKE_LEAF_DUMP(SignedLongIntegerExpression, get_value())
-MAKE_LEAF_DUMP(ISizeIntegerExpression, get_value())
-MAKE_LEAF_DUMP(UnsignedIntegerExpression, get_value())
-MAKE_LEAF_DUMP(UnsignedLongIntegerExpression, get_value())
-MAKE_LEAF_DUMP(USizeIntegerExpression, get_value())
-MAKE_LEAF_DUMP(ByteExpression, get_value())
-MAKE_LEAF_DUMP(FloatExpression, get_value())
-MAKE_LEAF_DUMP(BoolExpression, get_value())
+MAKE_LEAF_DUMP(StringExpression)
+MAKE_LEAF_DUMP(SignedIntegerExpression)
+MAKE_LEAF_DUMP(SignedLongIntegerExpression)
+MAKE_LEAF_DUMP(ISizeIntegerExpression)
+MAKE_LEAF_DUMP(UnsignedIntegerExpression)
+MAKE_LEAF_DUMP(UnsignedLongIntegerExpression)
+MAKE_LEAF_DUMP(USizeIntegerExpression)
+MAKE_LEAF_DUMP(ByteExpression)
+MAKE_LEAF_DUMP(FloatExpression)
+MAKE_LEAF_DUMP(BoolExpression)
 
 auto ASTDumper::visit(const ScopeResolutionExpression& node) -> void {
     fmt::println(out_, "ScopeResolutionExpression");

@@ -33,7 +33,7 @@ ExpressionStatement
 JumpStatement (CONTINUE)
 JumpStatement (RETURN)
 └─ Value: EnumExpression
-    └─ Variants:
+    └─ Enumerations:
         └─ Name: IdentifierExpression: RED
 ImportStatement
 └─ Module: IdentifierExpression: std
@@ -42,7 +42,7 @@ ImportStatement
 └─ Alias: IdentifierExpression: node
 DiscardStatement
 └─ Discarded: EnumExpression
-    └─ Variants:
+    └─ Enumerations:
         └─ Name: IdentifierExpression: RED
 DeclStatement (SIZE)
 ├─ Modifiers: COMPTIME
@@ -195,7 +195,7 @@ ExpressionStatement
 ExpressionStatement
 └─ Expr: EnumExpression
     ├─ Underlying: IdentifierExpression: ulong
-    └─ Variants:
+    └─ Enumerations:
         ├─ Name: IdentifierExpression: A
         │   └─ Default: UnsignedLongIntegerExpression: 1
         ├─ Name: IdentifierExpression: B

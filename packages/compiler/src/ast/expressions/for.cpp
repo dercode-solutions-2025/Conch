@@ -9,12 +9,12 @@
 
 namespace conch::ast {
 
-ForLoopCapture::Valued::Valued(TypeModifier modifier, Box<IdentifierExpression> name) noexcept
-    : modifier_{std::move(modifier)}, name_{std::move(name)} {}
+ForLoopCapture::Valued::Valued(TypeModifier modifier, Box<IdentifierExpression> ident) noexcept
+    : modifier_{std::move(modifier)}, ident_{std::move(ident)} {}
 ForLoopCapture::Valued::~Valued() = default;
 
 auto ForLoopCapture::Valued::is_equal(const Valued& other) const noexcept -> bool {
-    return modifier_ == other.modifier_ && *name_ == *other.name_;
+    return modifier_ == other.modifier_ && *ident_ == *other.ident_;
 }
 
 ForLoopCapture::ForLoopCapture() noexcept : underlying_{std::monostate{}} {}

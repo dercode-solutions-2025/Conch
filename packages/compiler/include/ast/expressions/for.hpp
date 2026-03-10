@@ -19,19 +19,19 @@ class ForLoopCapture {
   public:
     class Valued {
       public:
-        explicit Valued(TypeModifier modifier, Box<IdentifierExpression> name) noexcept;
+        explicit Valued(TypeModifier modifier, Box<IdentifierExpression> ident) noexcept;
         ~Valued();
 
         MAKE_AST_COPY_MOVE(Valued)
 
         MAKE_AST_GETTER(modifier, const TypeModifier&, )
-        MAKE_AST_GETTER(name, const IdentifierExpression&, *)
+        MAKE_AST_GETTER(ident, const IdentifierExpression&, *)
 
         MAKE_AST_DEPENDENT_EQ(Valued)
 
       private:
         TypeModifier              modifier_;
-        Box<IdentifierExpression> name_;
+        Box<IdentifierExpression> ident_;
     };
 
   public:

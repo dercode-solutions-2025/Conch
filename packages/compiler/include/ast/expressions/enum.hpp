@@ -12,19 +12,18 @@ class IdentifierExpression;
 
 class Enumeration {
   public:
-    explicit Enumeration(Box<IdentifierExpression> enumeration,
-                         Optional<Box<Expression>> value) noexcept;
+    explicit Enumeration(Box<IdentifierExpression> ident, Optional<Box<Expression>> value) noexcept;
     ~Enumeration();
 
     MAKE_AST_COPY_MOVE(Enumeration)
 
-    MAKE_AST_GETTER(name, const IdentifierExpression&, *)
+    MAKE_AST_GETTER(ident, const IdentifierExpression&, *)
     MAKE_OPTIONAL_UNPACKER(default_value, Expression, value_, **)
 
     MAKE_AST_DEPENDENT_EQ(Enumeration)
 
   private:
-    Box<IdentifierExpression> name_;
+    Box<IdentifierExpression> ident_;
     Optional<Box<Expression>> value_;
 };
 

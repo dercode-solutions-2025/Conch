@@ -5,7 +5,6 @@
 #include <concepts>
 #include <utility>
 
-#include <fmt/format.h>
 #include <magic_enum/magic_enum.hpp>
 
 #include "lexer/token.hpp"
@@ -170,12 +169,3 @@ template <typename Derived> class StmtBase : public NodeBase<Derived, Statement>
     auto is_equal(const NodeType& other) const noexcept -> bool;
 
 } // namespace conch::ast
-
-template <conch::ast::NodeSubtype N> struct fmt::formatter<N> {
-    static constexpr auto parse(format_parse_context& ctx) noexcept { return ctx.begin(); }
-
-    template <typename F> static auto format(const N& n, F& ctx) {
-        return fmt::format_to(
-            ctx.out(), "{}: {}", magic_enum::enum_name(n.get_kind()), n.get_token());
-    }
-};

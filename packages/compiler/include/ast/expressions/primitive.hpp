@@ -4,6 +4,8 @@
 #include <string>
 #include <utility>
 
+#include <fmt/format.h>
+
 #include "ast/node.hpp"
 
 #include "parser/parser.hpp"
@@ -197,3 +199,11 @@ template <> struct disable_default_parse<BoolExpression> : std::true_type {};
 // cppcheck-suppress-end [constParameterReference, duplInheritedMember]
 
 } // namespace conch::ast
+
+template <conch::ast::PrimitiveNode P> struct fmt::formatter<P> {
+    static constexpr auto parse(format_parse_context& ctx) noexcept { return ctx.begin(); }
+
+    template <typename F> static auto format(const P& p, F& ctx) {
+        return fmt::format_to(ctx.out(), "{}", p.get_value());
+    }
+};

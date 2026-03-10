@@ -11,20 +11,20 @@
 
 namespace conch::ast {
 
-FunctionParameter::FunctionParameter(Box<IdentifierExpression> name, ExplicitType&& type) noexcept
-    : name_{std::move(name)}, type_{std::move(type)} {}
+FunctionParameter::FunctionParameter(Box<IdentifierExpression> ident, ExplicitType&& type) noexcept
+    : ident_{std::move(ident)}, type_{std::move(type)} {}
 FunctionParameter::~FunctionParameter() = default;
 
 auto FunctionParameter::is_equal(const FunctionParameter& other) const noexcept -> bool {
-    return *name_ == *other.name_ && type_ == other.type_;
+    return *ident_ == *other.ident_ && type_ == other.type_;
 }
 
-SelfParameter::SelfParameter(TypeModifier modifier, Box<IdentifierExpression> name) noexcept
-    : modifier_{std::move(modifier)}, name_{std::move(name)} {}
+SelfParameter::SelfParameter(TypeModifier modifier, Box<IdentifierExpression> ident) noexcept
+    : modifier_{std::move(modifier)}, ident_{std::move(ident)} {}
 SelfParameter::~SelfParameter() = default;
 
 auto SelfParameter::is_equal(const SelfParameter& other) const noexcept -> bool {
-    return optional::safe_eq<TypeModifier>(modifier_, other.modifier_) && *name_ == *other.name_;
+    return optional::safe_eq<TypeModifier>(modifier_, other.modifier_) && *ident_ == *other.ident_;
 }
 
 FunctionExpression::FunctionExpression(const Token&                   start_token,
